@@ -78,7 +78,9 @@
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
     (fn []
-      (let [all-models (keys (get allem.core/config :models))
+      (let [all-models (->> (get allem.core/config :models)
+                            keys
+                            sort)
             {:keys [text answer model api-keys loading]
              :or   {model    (first all-models)
                     api-keys api-keys-persisted}} @!state
