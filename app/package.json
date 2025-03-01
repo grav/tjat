@@ -12,6 +12,7 @@
     "shadow-cljs": "^2.28.20"
   },
   "dependencies": {
+    "@instantdb/react": "^0.17.23",
     "react": "^19.0.0",
     "react-color": "^2.19.3",
     "react-dom": "^19.0.0",
