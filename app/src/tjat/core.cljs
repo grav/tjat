@@ -8,7 +8,8 @@
             [httpurr.client.xhr-alt :refer [client]]
             [tjat.markdown :as markdown]
             ["showdown" :as showdown]
-            [tjat.db :as db]))
+            [tjat.db :as db]
+            [tjat.ui :as ui]))
 
 (defonce root (createRoot (gdom/getElement "app")))
 
@@ -36,42 +37,7 @@
       (.then util/spprint)
       (.then println)))
 
-(defn api-key-edit []
-  (let [!state (r/atom nil)
-        !button-ref (atom nil)
-        !input-ref (atom nil)]
-    (fn [{:keys [value on-save]}]
-      (let [{:keys [is-editing? text]} @!state
-            text (or text value)]
-        [:div
-         [:input {:ref #(reset! !input-ref %)
-                  :value     (if is-editing?
-                               text
-                               (if text
-                                 (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF)))
-                                 "[none]"))
-                  :on-change (fn [e]
-                               (swap! !state assoc :text (.-value (.-target e))))
-                  :on-focus #(swap! !state assoc :is-editing? true)
 
-                  :on-key-down #(when (= "Enter" (.-key %))
-                                  (on-save text)
-                                  (.blur (.-target %)))
-                  :on-blur (fn [e]
-                             (when (not= @!button-ref (.-relatedTarget e))
-                               (swap! !state assoc :is-editing? false :text nil)))}]
-
-         (when is-editing?
-           [:button {:ref         #(reset! !button-ref %)
-                     :on-blur     (fn [e]
-                                    (when (not= @!input-ref (.-relatedTarget e))
-                                      (swap! !state assoc :is-editing? false :text nil)))
-                     :on-key-down #(when (= "Escape" (.-key %))
-                                     (.blur (.-target %)))
-                     :on-click (fn [_]
-                                 (on-save text)
-                                 (swap! !state assoc :is-editing? false :text nil))}
-            "Save"])]))))
 
 
 
@@ -103,14 +69,14 @@
                    [:b (name provider)]]
              [:div {:style {:display :flex}}
               [:div "Api key:"]
-              [api-key-edit {:on-save (fn [k]
-                                        (let [api-keys (if (seq k)
-                                                         (merge api-keys
-                                                                {provider k})
-                                                         (dissoc api-keys provider))]
-                                          (swap! !state assoc :api-keys api-keys)
-                                          (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                             :value   (get api-keys provider)}]]])
+              [ui/secret-edit-field {:on-save (fn [k]
+                                                (let [api-keys (if (seq k)
+                                                                 (merge api-keys
+                                                                        {provider k})
+                                                                 (dissoc api-keys provider))]
+                                                  (swap! !state assoc :api-keys api-keys)
+                                                  (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
+                                     :value        (get api-keys provider)}]]])
 
           [:p
            [:textarea
