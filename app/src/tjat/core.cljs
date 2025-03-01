@@ -7,7 +7,8 @@
             [httpurr.client :as http]
             [httpurr.client.xhr-alt :refer [client]]
             [tjat.markdown :as markdown]
-            ["showdown" :as showdown]))
+            ["showdown" :as showdown]
+            [tjat.db :as db]))
 
 (defonce root (createRoot (gdom/getElement "app")))
 
@@ -153,5 +154,9 @@
     [:div
      [upload/drop-zone]])
 
+(defn db-test []
+  [:div
+   [db/app]])
+
 (defn ^:dev/after-load main []
-  (.render root (r/as-element [app])))
+  (.render root (r/as-element [db-test])))
