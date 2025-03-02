@@ -121,7 +121,7 @@
 
 (defn db-test []
   [:div
-   [db/app]])
+   [db/instantdb-view]])
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [db-test])))

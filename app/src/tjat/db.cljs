@@ -26,7 +26,7 @@
                                    (aget (.-data r) "todos")
                                    :keywordize-keys true))))
 
-(defn app []
+(defn instantdb-view []
   (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
         !r-state (r/atom {:instantdb-app-id instantdb-app-id-persisted})
         !state (atom (when (seq instantdb-app-id-persisted)
@@ -48,7 +48,6 @@
                                                                        (when unsubscribe
                                                                          (unsubscribe))
                                                                        (swap! !r-state assoc
-                                                                              :instantdb-app-id s
                                                                               :todos nil)
                                                                        (js/localStorage.setItem "instantdb-app-id" s)
                                                                        (when (seq s)
@@ -58,12 +57,12 @@
                                                                                     :on-success (make-instantdb-success-handler !r-state)}))))
 
                                                             :value   instantdb-app-id}]]
-                                    [:ul
-                                     (for [{:keys [id text]} todos]
-                                       ^{:key id}
-                                       [:li text])]
-                                    [:button {:on-click #(.transact db
-                                                                    (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
-                                                                      (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
+                                    [:div [:ul
+                                           (for [{:keys [id text]} todos]
+                                             ^{:key id}
+                                             [:li text])]
+                                     [:button {:on-click #(.transact db
+                                                                     (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
+                                                                       (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
 
-                                     "Add item"]]))})))
+                                      "Add item"]]]))})))
