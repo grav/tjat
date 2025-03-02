@@ -1,6 +1,15 @@
 # Tjat
 
-App is in the `app` dir
+## Pre-requisites
+```
+# in root dir
+ln -s ../allem
+```
+
+```
+# in `app`
+npm i
+```
 
 ## Developing
 
