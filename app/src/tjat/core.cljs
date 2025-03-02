@@ -1,5 +1,5 @@
 (ns tjat.core
-  (:require ["react-dom/client" :refer [createRoot]]
+  (:require ["react-dom/client" :as react-dom]
             [allem.util :as util]
             [reagent.core :as r]
             [goog.dom :as gdom]
@@ -11,7 +11,7 @@
             [tjat.db :as db]
             [tjat.ui :as ui]))
 
-(defonce root (createRoot (gdom/getElement "app")))
+(defonce root (react-dom/createRoot (gdom/getElement "app")))
 
 (defonce !state (r/atom nil))
 
