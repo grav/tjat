@@ -111,9 +111,8 @@
                 :stroke-width "4"}]])]
           [:p
            {:dangerouslySetInnerHTML {:__html (.makeHtml
-                                                (doto (showdown/Converter.
-                                                        ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                                                        #_(clj->js {:tables true}))
+                                                ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
+                                                (doto (showdown/Converter.)
                                                   (.setFlavor "github")) answer)}}]]]))))
 
 #_(defn testit []
