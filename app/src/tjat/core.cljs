@@ -8,7 +8,8 @@
             [httpurr.client.xhr-alt :refer [client]]
             ["showdown" :as showdown]
             [tjat.db :as db]
-            [tjat.ui :as ui]))
+            [tjat.ui :as ui]
+            ["@instantdb/core" :as instantdb]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -173,9 +174,51 @@
     [:div
      [upload/drop-zone]])
 
+(defn instantdb-view []
+  (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
+        !r-state (r/atom {:instantdb-app-id instantdb-app-id-persisted})
+        !state (atom (when (seq instantdb-app-id-persisted)
+                       (db/init-instant-db {:app-id     instantdb-app-id-persisted
+                                            :subscriptions [:todos]
+                                            :!state !r-state})))]
+    (r/create-class
+      {:component-will-unmount (fn []
+                                 (let [{:keys [unsubscribe]} @!state]
+                                   (when unsubscribe
+                                     (unsubscribe))))
+       :reagent-render         (fn []
+                                 (let [{:keys [todos instantdb-app-id]} @!r-state
+                                       {:keys [unsubscribe db]} @!state]
+                                   [:div
+                                    [:h3 "DB Test"]
+                                    [:div {:style {:display :flex}}
+                                     "InstantDB app-id:"
+                                     [ui/secret-edit-field {:on-save (fn [s]
+                                                                       (when unsubscribe
+                                                                         (unsubscribe))
+                                                                       (swap! !r-state assoc
+                                                                              :todos nil)
+                                                                       (js/localStorage.setItem "instantdb-app-id" s)
+                                                                       (when (seq s)
+                                                                         (reset! !state
+                                                                                 (db/init-instant-db
+                                                                                   {:app-id     s
+                                                                                    :subscriptions [:todos]
+                                                                                    :!state !r-state}))))
+
+                                                            :value   instantdb-app-id}]]
+                                    [:div [:ul
+                                           (for [{:keys [id text]} todos]
+                                             ^{:key id}
+                                             [:li text])]
+                                     [:button {:on-click #(.transact db
+                                                                     (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
+                                                                       (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
+
+                                      "Add item"]]]))})))
 (defn db-test []
   [:div
-   [db/instantdb-view]])
+   [instantdb-view]])
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [db-test])))
