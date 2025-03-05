@@ -88,7 +88,7 @@
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
-    (fn []
+    (fn [{:keys [db]} !state]
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
@@ -97,7 +97,7 @@
                     api-keys api-keys-persisted}} @!state
             {:keys [provider]} (allem.core/make-config {:model model})]
         [:div
-         #_[:pre (util/spprint @!state)]
+         [:pre (util/spprint @!state)]
          [:h1 "Tjat!"]
          [:div
           "Model: "
@@ -138,12 +138,17 @@
                                                     :model    model
                                                     :api-keys api-keys})
                                       (.then (fn [v]
-                                               (let [id (random-uuid)]
+                                               (print v)
+                                               (let [id (instantdb/id)]
+                                                 (.transact db
+                                                            (let [chat (aget (.-chat ^js/Object (.-tx db)) id)]
+                                                              (.update chat #js{:chat text})))
+
+                                                 #_(swap! !state update-in [:chats text] conj {:id       id
+                                                                                               :model    model
+                                                                                               :time     (js/Date.)
+                                                                                               :response v})
                                                  ;; TODO: potentially do this in one 'swap'
-                                                 (swap! !state update-in [:chats text] conj {:id id
-                                                                                             :model model
-                                                                                             :time (js/Date.)
-                                                                                             :response v})
                                                  (swap! !state assoc-in [:selections text] id)
                                                  (swap! !state assoc
                                                         :loading false
@@ -162,33 +167,34 @@
                 :fill         "none"
                 :stroke       "#007bff"
                 :stroke-width "4"}]])]
-          [chat-menu @!state
-           {:on-chat-select (fn [selected-chat]
-                              (swap! !state assoc
-                                     :selected-chat selected-chat
-                                     ;; TODO - this might be a bit aggressive ...
-                                     :text selected-chat))
-            :on-response-select (fn [[selected-chat id]]
-                                  (swap! !state assoc-in [:selections selected-chat] id))}]]]))))
+          #_[chat-menu @!state
+             {:on-chat-select     (fn [selected-chat]
+                                    (swap! !state assoc
+                                           :selected-chat selected-chat
+                                           ;; TODO - this might be a bit aggressive ...
+                                       :text selected-chat))
+              :on-response-select (fn [[selected-chat id]]
+                                    (swap! !state assoc-in [:selections selected-chat] id))}]]]))))
 #_(defn testit []
     [:div
      [upload/drop-zone]])
 
 (defn instantdb-view []
   (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
-        !r-state (r/atom {:instantdb-app-id instantdb-app-id-persisted})
-        !state (atom (when (seq instantdb-app-id-persisted)
-                       (db/init-instant-db {:app-id     instantdb-app-id-persisted
-                                            :subscriptions [:todos]
-                                            :!state !r-state})))]
+        !ref-state (atom (when (seq instantdb-app-id-persisted)
+                           (db/init-instant-db {:app-id        instantdb-app-id-persisted
+                                                :subscriptions [:chat]
+                                                :!state        !state})))]
+    (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)
     (r/create-class
       {:component-will-unmount (fn []
-                                 (let [{:keys [unsubscribe]} @!state]
+                                 (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys [todos instantdb-app-id]} @!r-state
-                                       {:keys [unsubscribe db]} @!state]
+                                 (let [{:keys [instantdb-app-id]} @!state
+                                       {:keys [unsubscribe db]} @!ref-state]
+                                   [:pre (util/spprint @!ref-state)]
                                    [:div
                                     [:h3 "DB Test"]
                                     [:div {:style {:display :flex}}
@@ -196,26 +202,28 @@
                                      [ui/secret-edit-field {:on-save (fn [s]
                                                                        (when unsubscribe
                                                                          (unsubscribe))
-                                                                       (swap! !r-state assoc
+                                                                       (swap! !state assoc
+                                                                              ;; TODO - use unsubscriptions to reset state
                                                                               :todos nil)
                                                                        (js/localStorage.setItem "instantdb-app-id" s)
                                                                        (when (seq s)
-                                                                         (reset! !state
+                                                                         (reset! !ref-state
                                                                                  (db/init-instant-db
-                                                                                   {:app-id     s
-                                                                                    :subscriptions [:todos]
-                                                                                    :!state !r-state}))))
+                                                                                   {:app-id        s
+                                                                                    :subscriptions [:chat]
+                                                                                    :!state        !state}))))
 
                                                             :value   instantdb-app-id}]]
-                                    [:div [:ul
-                                           (for [{:keys [id text]} todos]
-                                             ^{:key id}
-                                             [:li text])]
-                                     [:button {:on-click #(.transact db
-                                                                     (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
-                                                                       (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
+                                    [app {:db db} !state]
+                                    #_[:div [:ul
+                                             (for [{:keys [id text]} todos]
+                                               ^{:key id}
+                                               [:li text])]
+                                       [:button {:on-click #(.transact db
+                                                                       (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
+                                                                         (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
 
-                                      "Add item"]]]))})))
+                                        "Add item"]]]))})))
 (defn db-test []
   [:div
    [instantdb-view]])

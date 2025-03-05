@@ -21,6 +21,7 @@
                              (mapv (fn [k]
                                      (.subscribeQuery db (clj->js {k {}})
                                                       (fn [r]
+                                                        (println 'sub k)
                                                         (if (.-error r)
                                                           (on-error r)
                                                           (on-success k r)))))))]
