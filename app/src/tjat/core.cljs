@@ -139,17 +139,24 @@
                                                     :api-keys api-keys})
                                       (.then (fn [v]
                                                (print v)
-                                               (let [id (instantdb/id)]
+                                               (let [chat-id (instantdb/id)
+                                                     response-id (instantdb/id)
+                                                     tx (.-tx db)]
                                                  (.transact db
-                                                            (let [chat (aget (.-chat ^js/Object (.-tx db)) id)]
-                                                              (.update chat #js{:chat text})))
+                                                            #js [(let [new-chat (aget (.-chats ^js/Object tx) chat-id)]
+                                                                   (.update new-chat #js{:text text}))
+                                                                 (let [new-response (aget (.-responses ^js/Object tx) response-id)]
+                                                                   (-> new-response
+                                                                       (.update #js{:text  v
+                                                                                    :model (name model)})
+                                                                       (.link #js {:chats chat-id})))])
 
-                                                 #_(swap! !state update-in [:chats text] conj {:id       id
+                                                 #_(swap! !state update-in [:chats text] conj {:id       chat-id
                                                                                                :model    model
                                                                                                :time     (js/Date.)
                                                                                                :response v})
                                                  ;; TODO: potentially do this in one 'swap'
-                                                 (swap! !state assoc-in [:selections text] id)
+                                                 (swap! !state assoc-in [:selections text] chat-id)
                                                  (swap! !state assoc
                                                         :loading false
                                                         :selected-chat text))))))}
@@ -172,7 +179,7 @@
                                     (swap! !state assoc
                                            :selected-chat selected-chat
                                            ;; TODO - this might be a bit aggressive ...
-                                       :text selected-chat))
+                                           :text selected-chat))
               :on-response-select (fn [[selected-chat id]]
                                     (swap! !state assoc-in [:selections selected-chat] id))}]]]))))
 #_(defn testit []
@@ -183,7 +190,7 @@
   (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
         !ref-state (atom (when (seq instantdb-app-id-persisted)
                            (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                :subscriptions [:chat]
+                                                :subscriptions [:chats :responses]
                                                 :!state        !state})))]
     (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)
     (r/create-class
