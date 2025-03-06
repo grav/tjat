@@ -50,15 +50,16 @@
                         (doto (showdown/Converter.)
                           (.setFlavor "github")) response)}}]]]))
 
-(defn response-tabs [{:keys [selected-chat selections chats]}
+(defn response-tabs [{:keys [selected-chat-id selections responses]}
                      {:keys [on-response-select]}]
-  (let [responses (get chats selected-chat)
-        {selected-response-id selected-chat} selections]
+  (let [responses (->> responses)
+        selected-response-id nil ;; TODO
+        #_#_{selected-response-id selected-chat} selections]
     [:div {:style {:display :flex}}
      (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
        ^{:key i} [:div [:div
                         {:style {:padding 10}
-                         :on-click #(on-response-select [selected-chat id])}
+                         :on-click #(on-response-select [selected-chat-id id])}
                         [:div {:style {:background-color (when (= selected-response-id id) :lightgray)}}
                          (name model)]]])]))
 
