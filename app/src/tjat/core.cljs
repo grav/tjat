@@ -82,7 +82,10 @@
                          [:div {:style {:font-weight      900
                                         :background-color (when (= selected-chat-id id) :lightgray)
                                         :padding          10
-                                        :width        100}} text]
+                                        :white-space :nowrap
+                                        :width        100
+                                        :overflow :hidden
+                                        :text-overflow :ellipsis}} text]
                          (when (= selected-chat-id id))])]
      [:div {:style {:padding 10}}
       [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
@@ -134,9 +137,9 @@
 
           [:p
            [:textarea
-            {:value text
-             :rows  10
-             :cols  100
+            {:style {:width "100%"}
+             :rows 10
+             :value text
              :on-change
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
@@ -218,7 +221,7 @@
                                  (let [{:keys [instantdb-app-id]} @!state
                                        {:keys [unsubscribe db]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
-                                   [:div
+                                   [:div {:style {:max-width 800}}
                                     [:details
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
@@ -239,9 +242,6 @@
 
                                                              :value   instantdb-app-id}]]]
                                     [app {:db db} !state]]))})))
-(defn db-test []
-  [:div
-   [instantdb-view]])
 
 (defn ^:dev/after-load main []
-  (.render root (r/as-element [db-test])))
+  (.render root (r/as-element [instantdb-view])))
