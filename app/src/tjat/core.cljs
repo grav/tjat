@@ -208,41 +208,39 @@
     (r/create-class
       {:component-did-mount (fn []
                               (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")]
-                                (reset! !ref-state (atom (when (seq instantdb-app-id-persisted)
-                                                           (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                                                :subscriptions {:chats {:responses {}}}
-                                                                                :!state        !state}))))
+                                (when (seq instantdb-app-id-persisted)
+                                  (reset! !ref-state
+                                          (db/init-instant-db {:app-id        instantdb-app-id-persisted
+                                                               :subscriptions {:chats {:responses {}}}
+                                                               :!state        !state})))
                                 (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
-       :reagent-render         (fn []
-                                 (let [{:keys [instantdb-app-id]} @!state
-                                       {:keys [unsubscribe db]} @!ref-state]
-                                   #_[:pre (util/spprint @!ref-state)]
-                                   [:div {:style {:max-width 800}}
-                                    [:details
+       :reagent-render (fn []
+                         (let [{:keys [instantdb-app-id]} @!state
+                               {:keys [unsubscribe db]} @!ref-state]
+                           #_[:pre (util/spprint @!ref-state)]
+                           [:div {:style {:max-width 800}}
+                            [:details
 
-                                     [:summary "Settings"]
-                                     [:div {:style {:display :flex}}
-                                      "InstantDB app-id:"
-                                      [ui/secret-edit-field {:on-save (fn [s]
-                                                                        (when unsubscribe
-                                                                          (unsubscribe))
-                                                                        (swap! !state assoc
-                                                                               ;; TODO - use unsubscriptions to reset state
-                                                                               :todos nil)
-                                                                        (js/localStorage.setItem "instantdb-app-id" s)
-                                                                        (when (seq s)
-                                                                          (reset! !ref-state
-                                                                                  (db/init-instant-db
-                                                                                    {:app-id        s
-                                                                                     :subscriptions {:chats {:responses {}}}
-                                                                                     :!state        !state}))))
+                             [:summary "Settings"]
+                             [:div {:style {:display :flex}}
+                              "InstantDB app-id:"
+                              [ui/secret-edit-field {:on-save (fn [s]
+                                                                (when unsubscribe
+                                                                  (unsubscribe))
+                                                                (js/localStorage.setItem "instantdb-app-id" s)
+                                                                (when (seq s)
+                                                                  (reset! !ref-state
+                                                                          (db/init-instant-db
+                                                                            {:app-id        s
+                                                                             :subscriptions {:chats {:responses {}}}
+                                                                             :!state        !state}))))
 
-                                                             :value   instantdb-app-id}]]]
-                                    [app {:db db} !state]]))})))
+                                                     :value   instantdb-app-id}]]]
+                            [app {:db db} !state]]))})))
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
