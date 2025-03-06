@@ -10,9 +10,9 @@
                         :or   {on-error   #(js/console.warn (.-error %))}}]
   (let [on-success (or on-success
                        (and !state
-                            (fn [k r]
-                              (swap! !state merge k (js->clj (.-data r)
-                                                             :keywordize-keys true))))
+                            (fn [r]
+                              (swap! !state merge (js->clj (.-data r)
+                                                           :keywordize-keys true))))
                        (throw (ex-info "Neither on-success nor !state was given to init-instant-db!"
                                        {})))
 
@@ -21,7 +21,7 @@
                                          (fn [r]
                                            (if (.-error r)
                                              (on-error r)
-                                             (on-success subscriptions r))))]
+                                             (on-success r))))]
     {:db          db
      :unsubscribe unsubscribe-fns}))
 
