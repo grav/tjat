@@ -218,34 +218,26 @@
                                        {:keys [unsubscribe db]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div
-                                    [:h3 "DB Test"]
-                                    [:div {:style {:display :flex}}
-                                     "InstantDB app-id:"
-                                     [ui/secret-edit-field {:on-save (fn [s]
-                                                                       (when unsubscribe
-                                                                         (unsubscribe))
-                                                                       (swap! !state assoc
-                                                                              ;; TODO - use unsubscriptions to reset state
-                                                                              :todos nil)
-                                                                       (js/localStorage.setItem "instantdb-app-id" s)
-                                                                       (when (seq s)
-                                                                         (reset! !ref-state
-                                                                                 (db/init-instant-db
-                                                                                   {:app-id        s
-                                                                                    :subscriptions [:chat]
-                                                                                    :!state        !state}))))
+                                    [:details
+                                     [:summary "Settings"]
+                                     [:div {:style {:display :flex}}
+                                      "InstantDB app-id:"
+                                      [ui/secret-edit-field {:on-save (fn [s]
+                                                                        (when unsubscribe
+                                                                          (unsubscribe))
+                                                                        (swap! !state assoc
+                                                                               ;; TODO - use unsubscriptions to reset state
+                                                                               :todos nil)
+                                                                        (js/localStorage.setItem "instantdb-app-id" s)
+                                                                        (when (seq s)
+                                                                          (reset! !ref-state
+                                                                                  (db/init-instant-db
+                                                                                    {:app-id        s
+                                                                                     :subscriptions [:chat]
+                                                                                     :!state        !state}))))
 
-                                                            :value   instantdb-app-id}]]
-                                    [app {:db db} !state]
-                                    #_[:div [:ul
-                                             (for [{:keys [id text]} todos]
-                                               ^{:key id}
-                                               [:li text])]
-                                       [:button {:on-click #(.transact db
-                                                                       (let [t (aget (.-todos ^js/Object (.-tx db)) (instantdb/id))]
-                                                                         (.update t #js{:text (rand-nth ["foo" "bar" "hello" "ding dong" ":-D"])})))}
-
-                                        "Add item"]]]))})))
+                                                             :value   instantdb-app-id}]]]
+                                    [app {:db db} !state]]))})))
 (defn db-test []
   [:div
    [instantdb-view]])

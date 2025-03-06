@@ -19,7 +19,6 @@
         db (instantdb/init #js{:appId app-id})
         unsubscribe-fns [(.subscribeQuery db (clj->js subscriptions)
                                           (fn [r]
-                                            (println 'sub subscriptions)
                                             (if (.-error r)
                                               (on-error r)
                                               (on-success subscriptions r))))]]
