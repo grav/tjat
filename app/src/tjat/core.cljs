@@ -92,10 +92,13 @@
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
-            {:keys [text answer model api-keys loading]
+            {:keys [text model api-keys loading chats selected-chat-id]
              :or   {model    (first all-models)
                     api-keys api-keys-persisted}} @!state
-            {:keys [provider]} (allem.core/make-config {:model model})]
+            {:keys [provider]} (allem.core/make-config {:model model})
+            selected-chat (->> chats
+                               (filter (comp #{selected-chat-id} :id))
+                               util/single)]
         [:div
          [:pre (util/spprint @!state)]
          [:h1 "Tjat!"]
@@ -134,32 +137,36 @@
            {:style {:height 50}}
            [:button {:on-click #(do
                                   (swap! !state assoc :loading true)
-                                  (-> (do-request! {:message  text
-                                                    :model    model
-                                                    :api-keys api-keys})
-                                      (.then (fn [v]
-                                               (print v)
-                                               (let [chat-id (instantdb/id)
-                                                     response-id (instantdb/id)
-                                                     tx (.-tx db)]
-                                                 (.transact db
-                                                            #js [(let [new-chat (aget (.-chats ^js/Object tx) chat-id)]
-                                                                   (.update new-chat #js{:text text}))
-                                                                 (let [new-response (aget (.-responses ^js/Object tx) response-id)]
+                                  (let [chat-id (if (not= text (:text selected-chat))
+                                                  (let [chat-id (instantdb/id)
+                                                        tx (.-tx db)
+                                                        new-chat (aget (.-chats ^js/Object tx) chat-id)]
+                                                    (.transact db
+                                                               (.update new-chat #js{:text text}))
+                                                    chat-id)
+                                                  selected-chat-id)]
+                                    (-> (do-request! {:message  text
+                                                      :model    model
+                                                      :api-keys api-keys})
+                                        (.then (fn [v]
+                                                 (print v)
+                                                 (let [response-id (instantdb/id)
+                                                       tx (.-tx db)]
+                                                   (.transact db (let [new-response (aget (.-responses ^js/Object tx) response-id)]
                                                                    (-> new-response
                                                                        (.update #js{:text  v
                                                                                     :model (name model)})
-                                                                       (.link #js {:chats chat-id})))])
+                                                                       (.link #js {:chats chat-id}))))
 
-                                                 #_(swap! !state update-in [:chats text] conj {:id       chat-id
-                                                                                               :model    model
-                                                                                               :time     (js/Date.)
-                                                                                               :response v})
-                                                 ;; TODO: potentially do this in one 'swap'
-                                                 (swap! !state assoc-in [:selections text] chat-id)
-                                                 (swap! !state assoc
-                                                        :loading false
-                                                        :selected-chat text))))))}
+                                                   #_(swap! !state update-in [:chats text] conj {:id       chat-id
+                                                                                                 :model    model
+                                                                                                 :time     (js/Date.)
+                                                                                                 :response v})
+                                                   ;; TODO: potentially do this in one 'swap'
+                                                   (swap! !state assoc-in [:selections text] chat-id)
+                                                   (swap! !state assoc
+                                                          :loading false
+                                                          :selected-chat text)))))))}
 
             "submit"]
            (when loading
