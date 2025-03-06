@@ -39,7 +39,7 @@
 
 
 
-(defn response-view [{:keys [time id response]}]
+(defn response-view [{:keys [time id text]}]
   (when id
     [:div
      [:div [:i (str time)]]
@@ -48,20 +48,19 @@
              {:__html (.makeHtml
                         ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
                         (doto (showdown/Converter.)
-                          (.setFlavor "github")) response)}}]]]))
+                          (.setFlavor "github")) text)}}]]]))
 
-(defn response-tabs [{:keys [selected-chat-id selections responses]}
+(defn response-tabs [{:keys [selected-response-id]
+                      chat-id :id
+                      responses :responses}
                      {:keys [on-response-select]}]
-  (let [responses (->> responses)
-        selected-response-id nil ;; TODO
-        #_#_{selected-response-id selected-chat} selections]
-    [:div {:style {:display :flex}}
-     (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
-       ^{:key i} [:div [:div
-                        {:style {:padding 10}
-                         :on-click #(on-response-select [selected-chat-id id])}
-                        [:div {:style {:background-color (when (= selected-response-id id) :lightgray)}}
-                         (name model)]]])]))
+  [:div {:style {:display :flex}}
+   (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
+     ^{:key i} [:div [:div
+                      {:style    {:padding 10}
+                       :on-click #(on-response-select [chat-id id])}
+                      [:div {:style {:background-color (when (= selected-response-id id) :lightgray)}}
+                       (name model)]]])])
 
 
 (defn chat-menu [{:keys [chats selected-chat-id selections]
@@ -69,10 +68,13 @@
                  {:keys [on-chat-select]
                   :as handlers}
                  !state]
-  (let [{selected-response-id selected-chat-id} selections]
+  (let [{selected-response-id selected-chat-id} selections
+        chat (->> chats
+                  (filter (comp #{selected-chat-id} :id))
+                  util/single)]
     [:div {:style {:display :flex
                    :padding 10}}
-     [:div (for [{:keys [id text]} chats]
+     [:div (for [{:keys [id text]} (reverse chats)]
              ^{:key id} [:div {:on-click #(on-chat-select id)}
                          [:div {:style {:font-weight      900
                                         :background-color (when (= selected-chat-id id) :lightgray)
@@ -80,9 +82,10 @@
                                         :width        100}} text]
                          (when (= selected-chat-id id))])]
      [:div {:style {:padding 10}}
-      [response-tabs state handlers]
+      [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
       [:hr]
-      [response-view (->> chats
+      [response-view (->> chat
+                          :responses
                           (filter (comp #{selected-response-id} :id))
                           util/single)]]]))
 
@@ -101,7 +104,7 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         [:pre (util/spprint @!state)]
+         #_[:pre (util/spprint @!state)]
          [:h1 "Tjat!"]
          [:div
           "Model: "
@@ -164,10 +167,10 @@
                                                                                                  :time     (js/Date.)
                                                                                                  :response v})
                                                    ;; TODO: potentially do this in one 'swap'
-                                                   (swap! !state assoc-in [:selections text] chat-id)
+                                                   (swap! !state assoc-in [:selections chat-id] response-id)
                                                    (swap! !state assoc
                                                           :loading false
-                                                          :selected-chat text)))))))}
+                                                          :selected-chat-id chat-id)))))))}
 
             "submit"]
            (when loading
@@ -188,7 +191,10 @@
                                    (swap! !state assoc
                                           :selected-chat-id selected-chat-id
                                           ;; TODO - this might be a bit aggressive ...
-                                          #_#_:text selected-chat))
+                                          :text (->> chats
+                                                     (filter (comp #{selected-chat-id} :id))
+                                                     util/single
+                                                     :text)))
              :on-response-select (fn [[selected-chat-id id]]
                                    (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
 #_(defn testit []
@@ -210,7 +216,7 @@
        :reagent-render         (fn []
                                  (let [{:keys [instantdb-app-id]} @!state
                                        {:keys [unsubscribe db]} @!ref-state]
-                                   [:pre (util/spprint @!ref-state)]
+                                   #_[:pre (util/spprint @!ref-state)]
                                    [:div
                                     [:h3 "DB Test"]
                                     [:div {:style {:display :flex}}
