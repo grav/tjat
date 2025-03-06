@@ -39,7 +39,7 @@
 
 
 
-(defn response-view [{:keys [request-time id text]}]
+(defn response-view [{:keys [request-time id text] :as x}]
   (when id
     [:div
      [:div [:i (some-> request-time
@@ -59,22 +59,23 @@
                      {:keys [on-response-select]}]
   [:div {:style {:display :flex}}
    (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
-     ^{:key i} [:div [:div
-                      {:style    {:padding 10}
-                       :on-click #(on-response-select [chat-id id])}
-                      [:div {:style {:background-color (when (= selected-response-id id) :lightgray)}}
-                       (name model)]]])])
+     ^{:key id} [:div [:div
+                       {:style    {:padding 10}
+                        :on-click #(on-response-select [chat-id id])}
+                       [:div {:style {:background-color (when (or (= selected-response-id id)
+                                                                  (and (nil? selected-response-id)
+                                                                       (zero? i))) :lightgray)}}
+                        (name model)]]])])
 
 
-(defn chat-menu [{:keys [chats selected-chat-id selections]
-                  :as state}
+(defn chat-menu [{:keys [chats selected-chat-id selections]}
                  {:keys [on-chat-select]
-                  :as handlers}
-                 !state]
+                  :as handlers}]
   (let [{selected-response-id selected-chat-id} selections
-        chat (->> chats
-                  (filter (comp #{selected-chat-id} :id))
-                  util/single)]
+        {:keys [responses]
+         :as chat} (->> chats
+                        (filter (comp #{selected-chat-id} :id))
+                        util/single)]
     [:div {:style {:display :flex
                    :padding 10}}
      [:div (for [{:keys [id text]} (reverse chats)]
@@ -90,10 +91,8 @@
      [:div {:style {:padding 10}}
       [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
       [:hr]
-      [response-view (->> chat
-                          :responses
-                          (filter (comp #{selected-response-id} :id))
-                          util/single)]]]))
+      [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                         (first responses))]]]))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
@@ -160,7 +159,6 @@
                                                       :model    model
                                                       :api-keys api-keys})
                                         (.then (fn [v]
-                                                 (print v)
                                                  (let [response-id (instantdb/id)
                                                        tx (.-tx db)]
                                                    (.transact db (let [new-response (aget (.-responses ^js/Object tx) response-id)]
