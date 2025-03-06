@@ -63,25 +63,25 @@
                          (name model)]]])]))
 
 
-(defn chat-menu [{:keys [chats selected-chat selections]
+(defn chat-menu [{:keys [chats selected-chat-id selections]
                   :as state}
                  {:keys [on-chat-select]
                   :as handlers}
                  !state]
-  (let [{selected-response-id selected-chat} selections]
+  (let [{selected-response-id selected-chat-id} selections]
     [:div {:style {:display :flex
                    :padding 10}}
-     [:div (for [[k _] chats]
-             ^{:key k} [:div {:on-click #(on-chat-select k)}
-                        [:div {:style {:font-weight      900
-                                       :background-color (when (= selected-chat k) :lightgray)
-                                       :padding          10
-                                       :width        100}} k]
-                        (when (= selected-chat k))])]
+     [:div (for [{:keys [id text]} chats]
+             ^{:key id} [:div {:on-click #(on-chat-select id)}
+                         [:div {:style {:font-weight      900
+                                        :background-color (when (= selected-chat-id id) :lightgray)
+                                        :padding          10
+                                        :width        100}} text]
+                         (when (= selected-chat-id id))])]
      [:div {:style {:padding 10}}
       [response-tabs state handlers]
       [:hr]
-      [response-view (->> (get chats selected-chat)
+      [response-view (->> chats
                           (filter (comp #{selected-response-id} :id))
                           util/single)]]]))
 
@@ -174,14 +174,15 @@
                 :fill         "none"
                 :stroke       "#007bff"
                 :stroke-width "4"}]])]
-          #_[chat-menu @!state
-             {:on-chat-select     (fn [selected-chat]
-                                    (swap! !state assoc
-                                           :selected-chat selected-chat
-                                           ;; TODO - this might be a bit aggressive ...
-                                           :text selected-chat))
-              :on-response-select (fn [[selected-chat id]]
-                                    (swap! !state assoc-in [:selections selected-chat] id))}]]]))))
+          [ui/error-boundary
+           [chat-menu @!state
+            {:on-chat-select     (fn [selected-chat-id]
+                                   (swap! !state assoc
+                                          :selected-chat-id selected-chat-id
+                                          ;; TODO - this might be a bit aggressive ...
+                                          #_#_:text selected-chat))
+             :on-response-select (fn [[selected-chat-id id]]
+                                   (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
 #_(defn testit []
     [:div
      [upload/drop-zone]])

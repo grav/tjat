@@ -37,3 +37,17 @@
                                  (on-save text)
                                  (swap! !state assoc :is-editing? false :text nil))}
             "Save"])]))))
+
+(defn error-boundary [_]
+  (let [error (r/atom nil)]
+    (r/create-class
+      {:component-did-catch (fn [this e info])
+       :get-derived-state-from-error (fn [e]
+                                       (reset! error e)
+                                       #js {})
+       :reagent-render (fn [comp]
+                         (if @error
+                           [:div
+                            (str "Something went wrong in '" (.-name ^js/Function (first comp)) "'")
+                            [:button {:on-click #(reset! error nil)} "Try again"]]
+                           comp))})))
