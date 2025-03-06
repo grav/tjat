@@ -206,14 +206,16 @@
      [upload/drop-zone]])
 
 (defn instantdb-view []
-  (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
-        !ref-state (atom (when (seq instantdb-app-id-persisted)
-                           (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                :subscriptions {:chats {:responses {}}}
-                                                :!state        !state})))]
-    (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)
+  (let [!ref-state (atom nil)]
     (r/create-class
-      {:component-will-unmount (fn []
+      {:component-did-mount (fn []
+                              (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")]
+                                (reset! !ref-state (atom (when (seq instantdb-app-id-persisted)
+                                                           (db/init-instant-db {:app-id        instantdb-app-id-persisted
+                                                                                :subscriptions {:chats {:responses {}}}
+                                                                                :!state        !state}))))
+                                (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)))
+       :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
@@ -223,6 +225,7 @@
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
                                     [:details
+
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
                                       "InstantDB app-id:"
@@ -237,7 +240,7 @@
                                                                           (reset! !ref-state
                                                                                   (db/init-instant-db
                                                                                     {:app-id        s
-                                                                                     :subscriptions [:chat]
+                                                                                     :subscriptions {:chats {:responses {}}}
                                                                                      :!state        !state}))))
 
                                                              :value   instantdb-app-id}]]]
@@ -245,3 +248,4 @@
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
+
