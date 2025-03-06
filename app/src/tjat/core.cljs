@@ -102,7 +102,9 @@
                             keys
                             sort)
             {:keys [text model api-keys loading chats selected-chat-id]
-             :or   {model    (first all-models)
+             :or   {model    (or
+                               (some-> (js/localStorage.getItem "tjat-model") keyword)
+                               (first all-models))
                     api-keys api-keys-persisted}} @!state
             {:keys [provider]} (allem.core/make-config {:model model})
             selected-chat (->> chats
@@ -115,10 +117,13 @@
           "Model: "
           [:select
            {:value     (name model)
-            :on-change #(swap! !state assoc :model (keyword (.-value (.-target %))))}
+            :on-change (fn [e]
+                         (let [model (.-value (.-target e))]
+                           (js/localStorage.setItem "tjat-model" model)
+                           (swap! !state assoc :model (keyword model))))}
            (for [p all-models]
              ^{:key (name p)}
-             [:option {:id       (name p)}
+             [:option {:id (name p)}
               (name p)])]
           (when provider
             [:div [:p (str "Provider: ")
