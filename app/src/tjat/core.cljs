@@ -39,10 +39,13 @@
 
 
 
-(defn response-view [{:keys [time id text]}]
+(defn response-view [{:keys [request-time id text]}]
   (when id
     [:div
-     [:div [:i (str time)]]
+     [:div [:i (some-> request-time
+                       js/Date.parse
+                       (js/Date.)
+                       str)]]
      [:div [:p
             {:dangerouslySetInnerHTML
              {:__html (.makeHtml
@@ -148,7 +151,8 @@
                                                     (.transact db
                                                                (.update new-chat #js{:text text}))
                                                     chat-id)
-                                                  selected-chat-id)]
+                                                  selected-chat-id)
+                                        start-time (js/Date.)]
                                     (-> (do-request! {:message  text
                                                       :model    model
                                                       :api-keys api-keys})
@@ -159,13 +163,10 @@
                                                    (.transact db (let [new-response (aget (.-responses ^js/Object tx) response-id)]
                                                                    (-> new-response
                                                                        (.update #js{:text  v
-                                                                                    :model (name model)})
+                                                                                    :model (name model)
+                                                                                    :request-time start-time
+                                                                                    :response-time (js/Date.)})
                                                                        (.link #js {:chats chat-id}))))
-
-                                                   #_(swap! !state update-in [:chats text] conj {:id       chat-id
-                                                                                                 :model    model
-                                                                                                 :time     (js/Date.)
-                                                                                                 :response v})
                                                    ;; TODO: potentially do this in one 'swap'
                                                    (swap! !state assoc-in [:selections chat-id] response-id)
                                                    (swap! !state assoc
