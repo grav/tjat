@@ -17,14 +17,12 @@
                                        {})))
 
         db (instantdb/init #js{:appId app-id})
-        unsubscribe-fns [(.subscribeQuery db (clj->js subscriptions)
-                                          (fn [r]
-                                            (if (.-error r)
-                                              (on-error r)
-                                              (on-success subscriptions r))))]]
+        unsubscribe-fns (.subscribeQuery db (clj->js subscriptions)
+                                         (fn [r]
+                                           (if (.-error r)
+                                             (on-error r)
+                                             (on-success subscriptions r))))]
     {:db          db
-     :unsubscribe (fn []
-                    (doseq [f unsubscribe-fns]
-                      (f)))}))
+     :unsubscribe unsubscribe-fns}))
 
 
