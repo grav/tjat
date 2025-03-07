@@ -1,0 +1,82 @@
+(ns allem.config
+  (:require [goog.string :as gstring] goog.string.format  ;; https://clojurescript.org/reference/google-closure-library#requiring-a-function
+            [allem.io :as io]
+            [allem.util :as util]))
+
+
+(defn remove-think [s]
+  (if-let [[_ matches] (re-matches #"<think>[\s\S]*?</think>([\s\S]*)" s)]
+    matches
+    s))
+
+(defn format' [s & args]
+  #?(:cljs (apply gstring/format s args)
+     :clj (apply format s args)))
+
+(def openai-content-structure
+  {:level1 {:messages nil}
+   :level2 {:role "user"
+            :content nil}})
+
+(def bearer-headers-fn
+  (fn [{:keys [api-key]}]
+    {"Authorization"     (format' "Bearer %s" api-key)}))
+
+(def openai-reply-fn
+  #(-> % :choices util/single :message :content))
+
+(defn openai-text-fn [s]
+  {:type "text"
+   :text s})
+
+(def groq
+  {:headers-fn bearer-headers-fn
+   :reply-fn openai-reply-fn})
+
+(def functions
+  {:anthropic
+   ;;; https://docs.anthropic.com/en/api/messages
+   {:headers-fn (fn [{:keys [api-key]}]
+                  {"x-api-key"         api-key
+                   "anthropic-version" "2023-06-01"
+                   "anthropic-dangerous-direct-browser-access" "true"
+                   "content-type"      "application/json"})
+    :reply-fn   (fn [b]
+                  (-> b :content util/single :text))
+    :image-fn (fn [{:keys [input-stream mime-type]}]
+                {:type "image"
+                 :source {:type "base64"
+                          :media_type mime-type
+                          :data (io/input-stream->base64 input-stream)}})}
+   :gemini {:headers-fn {}
+            :url-fn (fn [{:keys [api-key model]}]
+                      (format'
+                        "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
+                        model api-key))
+            :level1 {:contents nil}
+            :level2 {:parts nil}
+            :body-fn (fn [{:keys [message]}]
+                       {:contents [{:parts [{:text message}]}]})
+            :reply-fn #(-> % :candidates util/single :content :parts util/single :text)
+            :text-fn #(hash-map :text %)
+            :image-fn (fn [{:keys [input-stream mime-type]}]
+                        ;; https://ai.google.dev/gemini-api/docs/vision?lang=rest
+                        {:inline_data
+                         {:mime_type mime-type
+                          :data (format' "%s"
+                                                  (io/input-stream->base64 input-stream))}})}
+   :openai
+   {:image-fn (fn [{:keys [input-stream mime-type]}]
+                {:type "image_url"
+                 :image_url
+                 {:url (format' "data:%s;base64,%s"
+                                 mime-type
+                                 (io/input-stream->base64 input-stream))}})}})
+
+(defn normalize-config [c]
+  (merge
+    openai-content-structure
+    {:headers-fn bearer-headers-fn
+     :reply-fn openai-reply-fn
+     :text-fn openai-text-fn}
+    c))
