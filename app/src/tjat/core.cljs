@@ -210,7 +210,11 @@
                                                                            (assoc-in [:selections chat-id] response-id)
                                                                            (assoc :loading false)
                                                                            (assoc :selected-chat-id chat-id))))
-                                                       100))))))))}
+                                                       100)))))
+                                        (.catch (fn [e]
+                                                  (js/alert (str "Error: Got status " (:status (ex-data e))
+                                                                 " from API"))
+                                                  (swap! !state assoc :loading false))))))}
 
 
             "submit"]
