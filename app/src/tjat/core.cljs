@@ -151,7 +151,8 @@
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
            {:style {:height 50}}
-           [:button {:on-click #(do
+           [:button {:disabled (empty? text)
+                     :on-click #(do
                                   (swap! !state assoc :loading true)
                                   (let [chat-id (if (not= text (:text selected-chat))
                                                   (if db
