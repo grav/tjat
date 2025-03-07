@@ -4,6 +4,8 @@ A simple, fully browser-based LLM completion client featuring:
 - integration to multiple providers and models
 - chat history via [InstantDB](https://instantdb.com) 
 
+Try it here: [https://betafunk.dk/tjat](http://betafunk.dk/tjat)
+
 ## FAQ
 Q: Does this app steal my API keys?
 
