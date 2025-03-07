@@ -47,9 +47,9 @@ $ npx shadow-cljs release :app
 
 ## Deploying to S3 / Cloudfront
 ```bash
-AWS_PROFILE=mikkel-r2 aws s3api put-object \ 
+AWS_PROFILE=[profile aws s3api put-object \ 
   --endpoint-url [s3 or cloudfront bucket endpoint] \
-  --bucket betafunk --key tjat/js/main.js --body public/js/main.js \
+  --bucket [bucket] --key tjat/js/main.js --body public/js/main.js \
   --key tjat/index.html --body public/index.html \
   --acl public-read
   ```
