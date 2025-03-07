@@ -19,15 +19,18 @@ Q: Can people read my chat history?
 
 A: Only if they can guess your InstantDB app-id!
 
-## Pre-requisites
+
+
+## Developing
+
+### Pre-requisites
 
 ```
 cd app
 npm i
 ```
 
-## Developing
-
+### Building and running
 ```bash
 $ npx shadow-cljs server
 ```
@@ -38,17 +41,24 @@ In a repl:
 (shadow/watch :app)
 ```
 
+Visit http://localhost:8000
 
-## Releasing
+### Releasing
 
 ```bash 
 $ npx shadow-cljs release :app 
 ```
 
-## Deploying to S3 / Cloudfront
+### Deploying
+
+The release-build consists of a single html file and a javascript file,
+in the `public` dir.
+
+To deploy to eg S3 or Cloudflare, do:
+
 ```bash
-AWS_PROFILE=[profile aws s3api put-object \ 
-  --endpoint-url [s3 or cloudfront bucket endpoint] \
+AWS_PROFILE=[profile] aws s3api put-object \ 
+  --endpoint-url [s3 or cloudflare bucket endpoint] \
   --bucket [bucket] --key tjat/js/main.js --body public/js/main.js \
   --key tjat/index.html --body public/index.html \
   --acl public-read
