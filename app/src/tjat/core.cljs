@@ -68,31 +68,48 @@
                         (name model)]]])])
 
 
-(defn chat-menu [{:keys [chats selected-chat-id selections]}
-                 {:keys [on-chat-select]
-                  :as   handlers}]
-  (let [{selected-response-id selected-chat-id} selections
-        {:keys [responses]
-         :as   chat} (->> chats
-                          (filter (comp #{selected-chat-id} :id))
-                          util/single)]
-    [:div {:style {:display :flex
-                   :padding 10}}
-     [:div (for [{:keys [id text]} (reverse chats)]
-             ^{:key id} [:div {:on-click #(on-chat-select id)}
-                         [:div {:style {:font-weight      900
-                                        :background-color (when (= selected-chat-id id) :lightgray)
-                                        :padding          10
-                                        :white-space      :nowrap
-                                        :width            100
-                                        :overflow         :hidden
-                                        :text-overflow    :ellipsis}} text]
-                         (when (= selected-chat-id id))])]
-     [:div {:style {:padding 10}}
-      [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
-      [:hr]
-      [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                         (first responses))]]]))
+(defn chat-menu []
+  (let [!state (r/atom nil)]
+    (fn [{:keys [chats selected-chat-id selections]}
+         {:keys [on-chat-select]
+          :as   handlers}]
+      (let [{selected-response-id selected-chat-id} selections
+            {:keys [hover timer resting]} @!state
+            {:keys [responses]
+             :as   chat} (->> chats
+                              (filter (comp #{selected-chat-id} :id))
+                              util/single)]
+        [:div {:style {:display :flex
+                       :padding 10}}
+         [:div (for [{:keys [id text]} (reverse chats)]
+                 ^{:key id} [:div {:on-click #(on-chat-select id)}
+                             [:div {:style          {:font-weight      900
+                                                     :background-color (or
+                                                                         (when (= hover id) :lightblue)
+                                                                         (when (= selected-chat-id id) :lightgray))
+                                                     :padding          10
+                                                     :white-space      (when (not= resting id) :nowrap)
+                                                     :width            150
+                                                     :overflow-x       :hidden
+                                                     :overflow-y       :auto
+                                                     :text-overflow    (when (not= resting id) :ellipsis)
+                                                     :max-height       200}
+                                    :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
+                                                                                            (fn []
+                                                                                              (swap! !state
+                                                                                                     assoc :resting id))
+                                                                                            300))
+                                    :on-mouse-leave (fn [_]
+                                                      (when timer
+                                                        (js/clearTimeout timer))
+                                                      (swap! !state dissoc :hover :timer :resting))}
+                              text]
+                             (when (= selected-chat-id id))])]
+         [:div {:style {:padding 10}}
+          [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
+          [:hr]
+          [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                             (first responses))]]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
