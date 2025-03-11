@@ -73,7 +73,8 @@
                                  (let [{:keys [search-timer]} @!state]
                                    (when search-timer
                                      (js/clearTimeout search-timer))))
-       :reagent-render           (fn [{:keys [supabase-client]}]
+       :reagent-render           (fn [{:keys [supabase-client on-search]
+                                       :or {on-search println}}]
                                    (let [{:keys [search search-timer loading]} @!state]
                                      [:div
                                       [:input {:type      :text
@@ -91,13 +92,21 @@
                                                                                        (when (seq search)
                                                                                          (println "Searching .. " search)
                                                                                          (swap! !state assoc :loading true)
-                                                                                         (-> (-> ^js/Object supabase-client
-                                                                                                 (.from "responses")
-                                                                                                 (.select "id")
-                                                                                                 (.textSearch "text" (str "'" search "'")))
-                                                                                             (.then (fn [res]
+                                                                                         (-> (js/Promise.all [(-> ^js/Object supabase-client
+                                                                                                                  (.from "chats")
+                                                                                                                  (.select "id")
+                                                                                                                  (.textSearch "text" (str "'" search "'")))
+                                                                                                              (-> ^js/Object supabase-client
+                                                                                                                  (.from "responses")
+                                                                                                                  (.select "id")
+                                                                                                                  (.textSearch "text" (str "'" search "'")))])
+
+                                                                                             (.then (fn [[r1 r2]]
                                                                                                       (swap! !state assoc :loading false)
-                                                                                                      (js->clj (.-data res))))
+                                                                                                      (on-search {:responses (->> (js->clj (.-data r2) :keywordize-keys true)
+                                                                                                                                  (map :id))
+                                                                                                                  :chats     (->> (js->clj (.-data r1) :keywordize-keys true)
+                                                                                                                                  (map :id))})))
                                                                                              (.catch js/console.error)))))
 
                                                                                    500)))}]

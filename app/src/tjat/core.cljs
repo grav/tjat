@@ -133,7 +133,11 @@
             [:pre 'db? (str " " (some? db))]
             [:pre (util/spprint @!state)]]
          [:div {:style {:display :flex}}
-          [:div "Search: " [ui/search {:supabase-client supabase-client}]]]
+          [:div "Search: "
+           [ui/search
+            {:supabase-client supabase-client
+             :on-search       (fn [res]
+                                (swap! !state assoc :search-results res))}]]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
