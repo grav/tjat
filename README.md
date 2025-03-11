@@ -43,30 +43,6 @@ In a repl:
 
 Visit http://localhost:8000
 
-### Releasing
-
-```bash 
-$ npx shadow-cljs release :app 
-```
-
 ### Deploying
 
-The release-build consists of a single javascript file,
-in the `public-release` dir.
-
-To deploy to eg S3 or Cloudflare, do:
-
-```bash
-AWS_PROFILE=[profile] aws s3api put-object \ 
-  --endpoint-url [s3 or cloudflare bucket endpoint] \
-  --bucket [bucket] --key tjat/js/main.js --body public-release/js/main.js \
-  --acl public-read
-  
-# If you also updated the html:
-  
-AWS_PROFILE=[profile] aws s3api put-object \ 
-  --endpoint-url [s3 or cloudflare bucket endpoint] \
-  --key tjat/index.html --body public/index.html \
-  --acl public-read
-  
-  ```
+Check out the `deploy.sh` script.
