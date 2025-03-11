@@ -262,12 +262,13 @@
             "submit"]
            (when loading
              [ui/spinner])]
-          [:div {:style {:display :flex}}
-           "Search: "
-           [ui/search
-            {:supabase-client supabase-client
-             :on-search       (fn [res]
-                                (swap! !state assoc :search-results res))}]]
+          (when supabase-client
+            [:div {:style {:display :flex}}
+             "Search: "
+             [ui/search
+              {:supabase-client supabase-client
+               :on-search       (fn [res]
+                                  (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu @!state
             {:on-chat-select     (fn [selected-chat-id]
