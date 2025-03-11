@@ -104,9 +104,11 @@
                                                                                              (.then (fn [[r1 r2]]
                                                                                                       (swap! !state assoc :loading false)
                                                                                                       (on-search {:responses (->> (js->clj (.-data r2) :keywordize-keys true)
-                                                                                                                                  (map :id))
+                                                                                                                                  (map :id)
+                                                                                                                                  set)
                                                                                                                   :chats     (->> (js->clj (.-data r1) :keywordize-keys true)
-                                                                                                                                  (map :id))})))
+                                                                                                                                  (map :id)
+                                                                                                                                  set)})))
                                                                                              (.catch js/console.error)))))
 
                                                                                    500)))}]
