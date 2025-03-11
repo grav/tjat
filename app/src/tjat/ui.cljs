@@ -66,7 +66,6 @@
      :stroke-width "4"}]])
 
 (defn search []
-
   (let [!state (r/atom nil)]
     (r/create-class
       {:component-will-unmount (fn []
@@ -82,35 +81,41 @@
                                                :on-change (fn [e]
                                                             (when search-timer
                                                               (js/clearTimeout search-timer))
-                                                            (swap! !state assoc :search (.-value (.-target e))
-                                                                   :search-timer (js/setTimeout
-                                                                                   (fn []
-                                                                                     (js/clearTimeout search-timer)
-                                                                                     (let [{:keys [search]} @!state]
-                                                                                       ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
-                                                                                       ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
-                                                                                       (when (seq search)
-                                                                                         (println "Searching .. " search)
-                                                                                         (swap! !state assoc :loading true)
-                                                                                         (-> (js/Promise.all [(-> ^js/Object supabase-client
-                                                                                                                  (.from "chats")
-                                                                                                                  (.select "id")
-                                                                                                                  (.textSearch "text" (str "'" search "'")))
-                                                                                                              (-> ^js/Object supabase-client
-                                                                                                                  (.from "responses")
-                                                                                                                  (.select "id")
-                                                                                                                  (.textSearch "text" (str "'" search "'")))])
+                                                            (let [search (.-value (.-target e))]
+                                                              (when (empty? search)
+                                                                (on-search nil))
+                                                              (swap! !state assoc :search (.-value (.-target e))
+                                                                     :search-timer (js/setTimeout
+                                                                                     (fn []
+                                                                                       (js/clearTimeout search-timer)
+                                                                                       (let [{:keys [search]} @!state]
+                                                                                         ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
+                                                                                         ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
+                                                                                         (when (seq search)
+                                                                                           (swap! !state assoc :loading true)
+                                                                                           (-> (js/Promise.all [(-> ^js/Object supabase-client
+                                                                                                                    (.from "chats")
+                                                                                                                    (.select "id")
+                                                                                                                    (.textSearch "text" (str "'" search "'")))
+                                                                                                                (-> ^js/Object supabase-client
+                                                                                                                    (.from "responses")
+                                                                                                                    (.select "id,chat_id")
+                                                                                                                    (.textSearch "text" (str "'" search "'")))])
 
-                                                                                             (.then (fn [[r1 r2]]
-                                                                                                      (swap! !state assoc :loading false)
-                                                                                                      (on-search {:responses (->> (js->clj (.-data r2) :keywordize-keys true)
-                                                                                                                                  (map :id)
-                                                                                                                                  set)
-                                                                                                                  :chats     (->> (js->clj (.-data r1) :keywordize-keys true)
-                                                                                                                                  (map :id)
-                                                                                                                                  set)})))
-                                                                                             (.catch js/console.error)))))
+                                                                                               (.then (fn [[r1 r2]]
+                                                                                                        (swap! !state assoc :loading false)
+                                                                                                        (on-search {:responses (->> (js->clj (.-data r2) :keywordize-keys true)
+                                                                                                                                    (map :id)
+                                                                                                                                    set)
+                                                                                                                    :chats     (set (concat (->> (js->clj (.-data r1) :keywordize-keys true)
+                                                                                                                                                 (map :id))
+                                                                                                                                            (->> (js->clj (.-data r2) :keywordize-keys true)
+                                                                                                                                                 (map :chat_id))))})))
+                                                                                               (.catch js/console.error)))))
 
-                                                                                   500)))}]
+                                                                                     500))))}]
+                                      [:button {:on-click (fn [_]
+                                                            (swap! !state dissoc :search)
+                                                            (on-search nil))} "X"]
                                       (when loading
                                         [spinner])]))})))

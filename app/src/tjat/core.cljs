@@ -71,7 +71,10 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections]}
+    (fn [{:keys [chats selected-chat-id selections]
+          {search-response-ids :responses
+           search-chat-ids     :chats
+           :as search-results} :search-results}
          {:keys [on-chat-select]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
@@ -83,7 +86,10 @@
         [:div {:style {:display :flex
                        :padding 10}}
          [:div (for [{:keys [id text]} (reverse chats)]
-                 ^{:key id} [:div {:on-click #(on-chat-select id)}
+                 ^{:key id} [:div {:on-click #(on-chat-select id)
+                                   :style {:display (when (and search-results
+                                                               (nil? (search-chat-ids id)))
+                                                      :none)}}
                              [:div {:style          {:font-weight      900
                                                      :background-color (or
                                                                          (when (= hover id) :lightblue)
@@ -109,8 +115,10 @@
          [:div {:style {:padding 10}}
           [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
           [:hr]
-          [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                             (first responses))]]]))))
+          (when (or (nil? search-results)
+                    (search-response-ids selected-response-id))
+            [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                               (first responses))])]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
