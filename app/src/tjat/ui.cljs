@@ -51,3 +51,55 @@
                             (str "Something went wrong in '" (.-name ^js/Function (first comp)) "'")
                             [:button {:on-click #(reset! error nil)} "Try again"]]
                            comp))})))
+
+(defn spinner []
+  [:svg.spinner
+   {:width   "20"
+    :height  "20"
+    :viewBox "0 0 50 50"}
+   [:circle.spinner-circle
+    {:cx           "25"
+     :cy           "25"
+     :r            "20"
+     :fill         "none"
+     :stroke       "#007bff"
+     :stroke-width "4"}]])
+
+(defn search []
+
+  (let [!state (r/atom nil)]
+    (r/create-class
+      {:component-will-unmount (fn []
+                                 (let [{:keys [search-timer]} @!state]
+                                   (when search-timer
+                                     (js/clearTimeout search-timer))))
+       :reagent-render           (fn [{:keys [supabase-client]}]
+                                   (let [{:keys [search search-timer loading]} @!state]
+                                     [:div
+                                      [:input {:type      :text
+                                               :value     search
+                                               :on-change (fn [e]
+                                                            (when search-timer
+                                                              (js/clearTimeout search-timer))
+                                                            (swap! !state assoc :search (.-value (.-target e))
+                                                                   :search-timer (js/setTimeout
+                                                                                   (fn []
+                                                                                     (js/clearTimeout search-timer)
+                                                                                     (let [{:keys [search]} @!state]
+                                                                                       ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
+                                                                                       ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
+                                                                                       (when (seq search)
+                                                                                         (println "Searching .. " search)
+                                                                                         (swap! !state assoc :loading true)
+                                                                                         (-> (-> ^js/Object supabase-client
+                                                                                                 (.from "responses")
+                                                                                                 (.select "id")
+                                                                                                 (.textSearch "text" (str "'" search "'")))
+                                                                                             (.then (fn [res]
+                                                                                                      (swap! !state assoc :loading false)
+                                                                                                      (js->clj (.-data res))))
+                                                                                             (.catch js/console.error)))))
+
+                                                                                   500)))}]
+                                      (when loading
+                                        [spinner])]))})))

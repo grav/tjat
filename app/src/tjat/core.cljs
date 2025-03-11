@@ -112,36 +112,6 @@
           [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                              (first responses))]]]))))
 
-(defn search []
-  (let [!state (r/atom nil)]
-    (r/create-class
-      {:component-will-unmount (fn []
-                                 (let [{:keys [search-timer ]} @!state]
-                                   (when search-timer
-                                     (js/clearTimeout search-timer))))
-       :reagent-render           (fn [{:keys [supabase-client]}]
-                                   (let [{:keys [search search-timer]} @!state]
-                                     [:input {:type      :text
-                                              :value     search
-                                              :on-change (fn [e]
-                                                           (when search-timer
-                                                             (js/clearTimeout search-timer))
-                                                           (swap! !state assoc :search (.-value (.-target e))
-                                                                  :search-timer (js/setTimeout
-                                                                                  (fn []
-                                                                                    (let [{:keys [search]} @!state]
-                                                                                      ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
-                                                                                      ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
-                                                                                      (-> (-> ^js/Object supabase-client
-                                                                                              (.from "responses")
-                                                                                              (.select "text")
-                                                                                              (.textSearch "text" (str "'"  search "'")))
-                                                                                          (.then js/console.log)
-                                                                                          (.catch js/console.error))
-                                                                                      (println search)))
-                                                                                  200)))}]))})))
-
-
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
@@ -163,7 +133,7 @@
             [:pre 'db? (str " " (some? db))]
             [:pre (util/spprint @!state)]]
          [:div {:style {:display :flex}}
-          [:div "Search: " [search {:supabase-client supabase-client}]]]
+          [:div "Search: " [ui/search {:supabase-client supabase-client}]]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
@@ -285,17 +255,7 @@
 
             "submit"]
            (when loading
-             [:svg.spinner
-              {:width   "20"
-               :height  "20"
-               :viewBox "0 0 50 50"}
-              [:circle.spinner-circle
-               {:cx           "25"
-                :cy           "25"
-                :r            "20"
-                :fill         "none"
-                :stroke       "#007bff"
-                :stroke-width "4"}]])]
+             [ui/spinner])]
           [ui/error-boundary
            [chat-menu @!state
             {:on-chat-select     (fn [selected-chat-id]
