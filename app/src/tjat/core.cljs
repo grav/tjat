@@ -9,7 +9,8 @@
             ["showdown" :as showdown]
             [tjat.db :as db]
             [tjat.ui :as ui]
-            ["@instantdb/core" :as instantdb]))
+            ["@instantdb/core" :as instantdb]
+            ["@supabase/supabase-js" :as supabase]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -114,7 +115,7 @@
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
-    (fn [{:keys [db]} !state]
+    (fn [{:keys [db supabase-client]} !state]
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
@@ -206,6 +207,15 @@
                                                                        (-> new-response
                                                                            (.update (clj->js response))
                                                                            (.link #js {:chats chat-id}))))
+                                                       (when supabase-client
+                                                         (-> (-> ^js/Object supabase-client
+                                                                 (.from "responses")
+                                                                 (.insert #js{:id      response-id
+                                                                              :chat-id chat-id
+                                                                              :text    text}))
+                                                             (.then js/console.log)
+                                                             (.catch js/console.error)))
+
                                                        (swap! !state (fn [s]
                                                                        (-> s
 
@@ -268,25 +278,37 @@
     (js/console.error e)
     (js/alert (.-message e))))
 
+(def supabase-url "https://rjiidqdhadwocugptyjj.supabase.co")
+
 (defn instantdb-view []
   (let [!ref-state (atom nil)]
     (r/create-class
       {:component-did-mount    (fn []
-                                 (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")]
+                                 (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
+                                       supabase-key (js/localStorage.getItem "supabase-key")]
                                    (when (seq instantdb-app-id-persisted)
-                                     (reset! !ref-state
-                                             (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                                  :subscriptions {:chats {:responses {}}}
-                                                                  :!state        !state
-                                                                  :on-error instant-db-error-handler})))
-                                   (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)))
+                                     (swap! !ref-state
+                                            merge
+                                            (db/init-instant-db {:app-id        instantdb-app-id-persisted
+                                                                 :subscriptions {:chats {:responses {}}}
+                                                                 :!state        !state
+                                                                 :on-error      instant-db-error-handler})))
+                                   (when (seq supabase-key)
+                                     (swap! !ref-state
+                                            merge
+                                            {:supabase-client (supabase/createClient
+                                                                supabase-url
+                                                                supabase-key)}))
+                                   (swap! !state assoc
+                                          :instantdb-app-id instantdb-app-id-persisted
+                                          :supabase-key supabase-key)))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys [instantdb-app-id]} @!state
-                                       {:keys [unsubscribe db]} @!ref-state]
+                                 (let [{:keys [instantdb-app-id supabase-key]} @!state
+                                       {:keys [unsubscribe db supabase-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
                                     [:details
@@ -308,7 +330,8 @@
                                                                             (if (seq s)
                                                                               (do
                                                                                 (js/localStorage.setItem "instantdb-app-id" s)
-                                                                                (reset! !ref-state
+                                                                                (swap! !ref-state
+                                                                                       merge
                                                                                         (db/init-instant-db
                                                                                           {:app-id        s
                                                                                            :subscriptions {:chats {:responses {}}}
@@ -317,11 +340,35 @@
                                                                                 (swap! !state assoc :instantdb-app-id s))
                                                                               (do
                                                                                 (js/localStorage.removeItem "instantdb-app-id")
-                                                                                (reset! !ref-state nil)
+                                                                                (swap! !ref-state dissoc :db :unsubscribe)
                                                                                 (swap! !state dissoc :chats :instantdb-app-id))))))
 
-                                                             :value   instantdb-app-id}]]]
-                                    [app {:db db} !state]]))})))
+                                                             :value   instantdb-app-id}]]
+                                     [:div {:style {:display :flex}}
+                                      [:a {:href "https://supabase.com/dashboard/projects"
+                                           :target "_blank"}
+                                       "Supabase"]
+                                      " key: "
+                                      [ui/secret-edit-field {:on-save (fn [s]
+                                                                        (if (seq s)
+                                                                          (do
+                                                                            (js/localStorage.setItem "supabase-key" s)
+                                                                            (swap! !ref-state
+                                                                                   merge
+                                                                                   {:supabase-client (supabase/createClient
+                                                                                                       supabase-url
+                                                                                                       s)})
+                                                                            (swap! !state assoc :supabase-key s))
+                                                                          (do
+                                                                            (js/localStorage.removeItem "supabase-key")
+                                                                            (swap! !ref-state dissoc :supabase-client)
+                                                                            (swap! !state dissoc :supabase-key))))
+
+
+                                                             :value   supabase-key}]]]
+                                    [app {:db              db
+                                          :supabase-client supabase-client}
+                                     !state]]))})))
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
