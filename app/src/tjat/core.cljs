@@ -355,28 +355,50 @@
                                                                                 (swap! !state dissoc :chats :instantdb-app-id))))))
 
                                                              :value   instantdb-app-id}]]
-                                     [:div {:style {:display :flex}}
-                                      [:a {:href "https://supabase.com/dashboard/projects"
-                                           :target "_blank"}
-                                       "Supabase"]
-                                      " key: "
-                                      [ui/secret-edit-field {:on-save (fn [s]
-                                                                        (if (seq s)
-                                                                          (do
-                                                                            (js/localStorage.setItem "supabase-key" s)
-                                                                            (swap! !ref-state
-                                                                                   merge
-                                                                                   {:supabase-client (supabase/createClient
-                                                                                                       supabase-url
-                                                                                                       s)})
-                                                                            (swap! !state assoc :supabase-key s))
-                                                                          (do
-                                                                            (js/localStorage.removeItem "supabase-key")
-                                                                            (swap! !ref-state dissoc :supabase-client)
-                                                                            (swap! !state dissoc :supabase-key))))
+                                     [:div
+                                      [:div {:style {:display :flex}}
+                                       [:a {:href   "https://supabase.com/dashboard/projects"
+                                            :target "_blank"}
+                                        "Supabase"]
+                                       " key: "
+                                       [ui/secret-edit-field {:on-save (fn [s]
+                                                                         (if (seq s)
+                                                                           (do
+                                                                             (js/localStorage.setItem "supabase-key" s)
+                                                                             (swap! !ref-state
+                                                                                    merge
+                                                                                    {:supabase-client (supabase/createClient
+                                                                                                        supabase-url
+                                                                                                        s)})
+                                                                             (swap! !state assoc :supabase-key s))
+                                                                           (do
+                                                                             (js/localStorage.removeItem "supabase-key")
+                                                                             (swap! !ref-state dissoc :supabase-client)
+                                                                             (swap! !state dissoc :supabase-key))))
 
 
-                                                             :value   supabase-key}]]]
+                                                              :value   supabase-key}]]
+                                      [:button {:on-click (fn []
+                                                            (let [chat-promises (for [{:keys [id text]} (:chats @!state)]
+                                                                                  (-> ^js/Object supabase-client
+                                                                                      (.from "chats")
+                                                                                      (.insert #js{:id id :text text})))
+                                                                  response-promises (for [{:keys [responses]} (:chats @!state)
+                                                                                          {:keys [id text]} responses]
+                                                                                      (-> ^js/Object supabase-client
+                                                                                          (.from "responses")
+                                                                                          (.insert #js{:id id :text text})))]
+
+
+                                                              (-> (js/Promise.all chat-promises)
+                                                                  (.then #(js/Promise.all response-promises))
+                                                                  (.then #(js/alert "done!")))))
+
+
+
+                                                :disabled (nil? supabase-key)}
+
+                                       "Import to Supabase"]]]
                                     [app {:db              db
                                           :supabase-client supabase-client}
                                      !state]]))})))
