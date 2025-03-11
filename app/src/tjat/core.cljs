@@ -154,8 +154,8 @@
          #_[:div
             [:pre 'db? (str " " (some? db))]
             [:pre (util/spprint @!state)]]
-         [:div
-          [search]]
+         [:div {:style {:display :flex}}
+          [:div "Search: " [search]]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
