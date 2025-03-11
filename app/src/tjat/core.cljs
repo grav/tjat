@@ -112,6 +112,28 @@
           [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                              (first responses))]]]))))
 
+(defn search []
+  (let [!state (r/atom nil)]
+    (r/create-class
+      {:component-will-unmount (fn []
+                                 (let [{:keys [search-timer]} @!state]
+                                   (when search-timer
+                                     (js/clearTimeout search-timer))))
+       :reagent-render           (fn []
+                                   (let [{:keys [search search-timer]} @!state]
+                                     [:input {:type      :text
+                                              :value     search
+                                              :on-change (fn [e]
+                                                           (when search-timer
+                                                             (js/clearTimeout search-timer))
+                                                           (swap! !state assoc :search (.-value (.-target e))
+                                                                  :search-timer (js/setTimeout
+                                                                                  (fn []
+                                                                                    (let [{:keys [search]} @!state]
+                                                                                      (println search)))
+                                                                                  200)))}]))})))
+
+
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
@@ -132,6 +154,8 @@
          #_[:div
             [:pre 'db? (str " " (some? db))]
             [:pre (util/spprint @!state)]]
+         [:div
+          [search]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
