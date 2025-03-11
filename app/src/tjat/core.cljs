@@ -383,11 +383,13 @@
                                                                                   (-> ^js/Object supabase-client
                                                                                       (.from "chats")
                                                                                       (.insert #js{:id id :text text})))
-                                                                  response-promises (for [{:keys [responses]} (:chats @!state)
+                                                                  response-promises (for [{:keys [responses]
+                                                                                           chat_id :id}
+                                                                                          (:chats @!state)
                                                                                           {:keys [id text]} responses]
                                                                                       (-> ^js/Object supabase-client
                                                                                           (.from "responses")
-                                                                                          (.insert #js{:id id :text text})))]
+                                                                                          (.insert #js{:id id :text text :chat_id chat_id})))]
 
 
                                                               (-> (js/Promise.all chat-promises)
