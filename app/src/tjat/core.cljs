@@ -116,10 +116,10 @@
   (let [!state (r/atom nil)]
     (r/create-class
       {:component-will-unmount (fn []
-                                 (let [{:keys [search-timer]} @!state]
+                                 (let [{:keys [search-timer ]} @!state]
                                    (when search-timer
                                      (js/clearTimeout search-timer))))
-       :reagent-render           (fn []
+       :reagent-render           (fn [{:keys [supabase-client]}]
                                    (let [{:keys [search search-timer]} @!state]
                                      [:input {:type      :text
                                               :value     search
@@ -130,6 +130,14 @@
                                                                   :search-timer (js/setTimeout
                                                                                   (fn []
                                                                                     (let [{:keys [search]} @!state]
+                                                                                      ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
+                                                                                      ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
+                                                                                      (-> (-> ^js/Object supabase-client
+                                                                                              (.from "responses")
+                                                                                              (.select "text")
+                                                                                              (.textSearch "text" (str "'"  search "'")))
+                                                                                          (.then js/console.log)
+                                                                                          (.catch js/console.error))
                                                                                       (println search)))
                                                                                   200)))}]))})))
 
@@ -155,7 +163,7 @@
             [:pre 'db? (str " " (some? db))]
             [:pre (util/spprint @!state)]]
          [:div {:style {:display :flex}}
-          [:div "Search: " [search]]]
+          [:div "Search: " [search {:supabase-client supabase-client}]]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
