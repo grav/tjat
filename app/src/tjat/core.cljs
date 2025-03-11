@@ -179,6 +179,13 @@
                                                           new-chat (aget (.-chats ^js/Object tx) chat-id)]
                                                       (.transact db
                                                                  (.update new-chat #js{:text text}))
+                                                      (when supabase-client
+                                                        (-> (-> ^js/Object supabase-client
+                                                                (.from "chats")
+                                                                (.insert #js{:id      chat-id
+                                                                             :text    text}))
+                                                            (.then js/console.log)
+                                                            (.catch js/console.error)))
                                                       chat-id)
                                                     ;; local-only
                                                     (let [id (str (random-uuid))]
@@ -211,8 +218,8 @@
                                                          (-> (-> ^js/Object supabase-client
                                                                  (.from "responses")
                                                                  (.insert #js{:id      response-id
-                                                                              :chat-id chat-id
-                                                                              :text    text}))
+                                                                              :chat_id chat-id
+                                                                              :text    v}))
                                                              (.then js/console.log)
                                                              (.catch js/console.error)))
 
