@@ -6,6 +6,8 @@ dir="${1:-tjat}"
 
 pushd app
 
+npm i
+
 npx shadow-cljs release :app
 
 aws s3api put-object \
