@@ -226,9 +226,11 @@
                                                                            (.link #js {:chats chat-id}))))
                                                        (when algolia-client
                                                          (-> (.saveObject ^js/Object algolia-client
-                                                                          (clj->js {:id      response-id
-                                                                                    :chat_id chat-id
-                                                                                    :text    v}))
+                                                                          (clj->js {:indexName a/index-name-chats
+                                                                                    :body      {:id      response-id
+                                                                                                :objectID chat-id
+                                                                                                :chat_id chat-id
+                                                                                                :text    v}}))
                                                              (.then js/console.log)))
 
                                                        (swap! !state (fn [s]
@@ -254,8 +256,13 @@
                                                                            (assoc :selected-chat-id chat-id))))
                                                        100)))))
                                         (.catch (fn [e]
-                                                  (js/alert (str "Error: Got status " (:status (ex-data e))
-                                                                 " from API"))
+                                                  (js/alert
+                                                    (cond
+                                                      (some-> (ex-data e) :status)
+                                                      (str "Error: Got status " (:status (ex-data e))
+                                                           " from API")
+                                                      :else
+                                                      (str e)))
                                                   (swap! !state assoc :loading false))))))}
 
 
@@ -267,8 +274,8 @@
              "Search: "
              [ui/search
               {:algolia-client algolia-client
-               :on-search       (fn [res]
-                                  (swap! !state assoc :search-results res))}]])
+               :on-search      (fn [res]
+                                 (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu @!state
             {:on-chat-select     (fn [selected-chat-id]
