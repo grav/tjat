@@ -326,7 +326,7 @@
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
-                                    [:details {:open true}
+                                    [:details {:open false}
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
                                       [:a {:href   "https://www.instantdb.com/dash"
@@ -360,7 +360,10 @@
                                                       :value   instantdb-app-id}]]
                                      [:div
                                       [:div {:style {:display :flex}}
-                                       "Algolia App-id: "
+                                       [:a {:href "https://dashboard.algolia.com/"
+                                            :target "_blank"}
+                                        "Algolia"]
+                                       " App-id: "
                                        [ui/edit-field {:secret? false
                                                        :on-save (fn [s]
                                                                   (if (seq s)
