@@ -14,6 +14,7 @@
   "dependencies": {
     "@instantdb/core": "^0.17.23",
     "algoliasearch": "^5.21.0",
+    "@supabase/supabase-js": "^2.49.1",
     "react": "^19.0.0",
     "react-color": "^2.19.3",
     "react-dom": "^19.0.0",
