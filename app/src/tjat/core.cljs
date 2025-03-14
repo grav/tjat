@@ -383,7 +383,7 @@
 
                                                        :value   algolia-app-id}]]
                                       [:div {:style {:display :flex}}
-                                       "Algolia API key: "
+                                       "Algolia API key (write): "
                                        [ui/edit-field {:on-save (fn [s]
                                                                   (if (seq s)
                                                                     (do
