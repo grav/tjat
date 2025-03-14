@@ -112,9 +112,8 @@
                                                                                                           (on-search {:responses (->> responses
                                                                                                                                       (map :id)
                                                                                                                                       set)
-                                                                                                                      :chats     (->> chats
-                                                                                                                                      (map :id)
-                                                                                                                                      set)}))))))))
+                                                                                                                      :chats     (set (concat (map :id chats)
+                                                                                                                                              (map :chat_id responses)))}))))))))
 
                                                                                      500))))}]
                                       [:button {:on-click (fn [_]
