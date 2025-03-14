@@ -192,7 +192,7 @@
                                                       (when algolia-client
                                                         (-> (.saveObject ^js/Object algolia-client
                                                                          (clj->js
-                                                                           {:indexName a/index-name
+                                                                           {:indexName a/index-name-chats
                                                                             :body      {:id       chat-id
                                                                                         :objectID chat-id
                                                                                         :text     text}}))
@@ -408,13 +408,13 @@
                                                                                        chat-id :id} (:chats @!state)
                                                                                       {:keys [id] :as r} responses]
                                                                                   {:action    "addObject"
-                                                                                   :indexName a/index-name
+                                                                                   :indexName a/index-name-responses
                                                                                    :body      (assoc r :objectID id
                                                                                                        :chat_id chat-id)})
                                                                   chat-reqs (->> chats
                                                                                  (map (fn [{:keys [id] :as c}]
                                                                                         {:action "addObject"
-                                                                                         :indexName a/index-name
+                                                                                         :indexName a/index-name-chats
                                                                                          :body (-> (assoc c :objectID id)
                                                                                                    (dissoc :responses))})))]
                                                               (-> (.multipleBatch

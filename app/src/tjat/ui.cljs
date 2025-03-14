@@ -1,5 +1,6 @@
 (ns tjat.ui
-  (:require [reagent.core :as r]))
+  (:require [reagent.core :as r]
+            [tjat.algolia :as a]))
 
 (defn edit-field []
   (let [!state (r/atom nil)
@@ -80,7 +81,7 @@
                                  (let [{:keys [search-timer]} @!state]
                                    (when search-timer
                                      (js/clearTimeout search-timer))))
-       :reagent-render           (fn [{:keys [supabase-client on-search]
+       :reagent-render           (fn [{:keys [algolia-client on-search]
                                        :or {on-search println}}]
                                    (let [{:keys [search search-timer loading]} @!state]
                                      [:div
@@ -101,25 +102,21 @@
                                                                                          ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
                                                                                          (when (seq search)
                                                                                            (swap! !state assoc :loading true)
-                                                                                           (-> (js/Promise.all [(-> ^js/Object supabase-client
-                                                                                                                    (.from "chats")
-                                                                                                                    (.select "id")
-                                                                                                                    (.textSearch "text" (str "'" search "'")))
-                                                                                                                (-> ^js/Object supabase-client
-                                                                                                                    (.from "responses")
-                                                                                                                    (.select "id,chat_id")
-                                                                                                                    (.textSearch "text" (str "'" search "'")))])
-
-                                                                                               (.then (fn [[r1 r2]]
-                                                                                                        (swap! !state assoc :loading false)
-                                                                                                        (on-search {:responses (->> (js->clj (.-data r2) :keywordize-keys true)
-                                                                                                                                    (map :id)
-                                                                                                                                    set)
-                                                                                                                    :chats     (set (concat (->> (js->clj (.-data r1) :keywordize-keys true)
-                                                                                                                                                 (map :id))
-                                                                                                                                            (->> (js->clj (.-data r2) :keywordize-keys true)
-                                                                                                                                                 (map :chat_id))))})))
-                                                                                               (.catch js/console.error)))))
+                                                                                           (-> (.search ^js/Object algolia-client
+                                                                                                        (clj->js {:requests [{:indexName a/index-name-chats
+                                                                                                                              :query     search}
+                                                                                                                             {:indexName a/index-name-responses
+                                                                                                                              :query search}]}))
+                                                                                               (.then (fn [r]
+                                                                                                        (let [{[{chats :hits} {responses :hits}] :results} (->> (js->clj r :keywordize-keys true))]
+                                                                                                          (js/console.log chats responses)
+                                                                                                          (swap! !state assoc :loading false)
+                                                                                                          (on-search {:responses (->> responses
+                                                                                                                                      (map :id)
+                                                                                                                                      set)
+                                                                                                                      :chats     (->> chats
+                                                                                                                                      (map :id)
+                                                                                                                                      set)}))))))))
 
                                                                                      500))))}]
                                       [:button {:on-click (fn [_]

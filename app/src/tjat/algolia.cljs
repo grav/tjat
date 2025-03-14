@@ -1,7 +1,9 @@
 (ns tjat.algolia
   (:require ["algoliasearch" :as algolia]))
 
-(def index-name "tjat")
+(def index-name-chats "tjat-chats")
+
+(def index-name-responses "tjat-responses")
 
 ;; https://www.algolia.com/doc/libraries/javascript/v5/
 (comment
