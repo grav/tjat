@@ -98,8 +98,6 @@
                                                                                      (fn []
                                                                                        (js/clearTimeout search-timer)
                                                                                        (let [{:keys [search]} @!state]
-                                                                                         ;; from https://supabase.com/docs/guides/database/full-text-search?queryGroups=language&language=js
-                                                                                         ;; const { data, error } = await supabase.from('books').select().textSearch('title', `'Harry'`)
                                                                                          (when (seq search)
                                                                                            (swap! !state assoc :loading true)
                                                                                            (-> (.search ^js/Object algolia-client

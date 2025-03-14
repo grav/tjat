@@ -11,8 +11,7 @@
             [tjat.ui :as ui]
             [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
-            ["algoliasearch" :as algolia]
-            ["@supabase/supabase-js" :as supabase]))
+            ["algoliasearch" :as algolia]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -291,14 +290,11 @@
     (js/console.error e)
     (js/alert (.-message e))))
 
-(def supabase-url "https://rjiidqdhadwocugptyjj.supabase.co")
-
 (defn instantdb-view []
   (let [!ref-state (atom nil)]
     (r/create-class
       {:component-did-mount    (fn []
                                  (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
-                                       supabase-key (js/localStorage.getItem "supabase-key")
                                        algolia-app-id (js/localStorage.getItem "algolia-app-id")
                                        algolia-api-key (js/localStorage.getItem "algolia-api-key")]
                                    (when (seq instantdb-app-id-persisted)
