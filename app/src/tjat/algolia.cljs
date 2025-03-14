@@ -1,6 +1,8 @@
 (ns tjat.algolia
   (:require ["algoliasearch" :as algolia]))
 
+(def index-name "tjat")
+
 ;; https://www.algolia.com/doc/libraries/javascript/v5/
 (comment
   (let [app-id "4ORO0SDUY5"

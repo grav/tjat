@@ -9,6 +9,7 @@
             ["showdown" :as showdown]
             [tjat.db :as db]
             [tjat.ui :as ui]
+            [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
             ["algoliasearch" :as algolia]
             ["@supabase/supabase-js" :as supabase]))
@@ -124,7 +125,7 @@
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
-    (fn [{:keys [db supabase-client]} !state]
+    (fn [{:keys [db algolia-client]} !state]
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
@@ -188,13 +189,14 @@
                                                           new-chat (aget (.-chats ^js/Object tx) chat-id)]
                                                       (.transact db
                                                                  (.update new-chat #js{:text text}))
-                                                      (when supabase-client
-                                                        (-> (-> ^js/Object supabase-client
-                                                                (.from "chats")
-                                                                (.insert #js{:id      chat-id
-                                                                             :text    text}))
-                                                            (.then js/console.log)
-                                                            (.catch js/console.error)))
+                                                      (when algolia-client
+                                                        (-> (.saveObject ^js/Object algolia-client
+                                                                         (clj->js
+                                                                           {:indexName a/index-name
+                                                                            :body      {:id       chat-id
+                                                                                        :objectID chat-id
+                                                                                        :text     text}}))
+                                                            (.then js/console.log)))
                                                       chat-id)
                                                     ;; local-only
                                                     (let [id (str (random-uuid))]
@@ -223,14 +225,12 @@
                                                                        (-> new-response
                                                                            (.update (clj->js response))
                                                                            (.link #js {:chats chat-id}))))
-                                                       (when supabase-client
-                                                         (-> (-> ^js/Object supabase-client
-                                                                 (.from "responses")
-                                                                 (.insert #js{:id      response-id
-                                                                              :chat_id chat-id
-                                                                              :text    v}))
-                                                             (.then js/console.log)
-                                                             (.catch js/console.error)))
+                                                       (when algolia-client
+                                                         (-> (.saveObject ^js/Object algolia-client
+                                                                          (clj->js {:id      response-id
+                                                                                    :chat_id chat-id
+                                                                                    :text    v}))
+                                                             (.then js/console.log)))
 
                                                        (swap! !state (fn [s]
                                                                        (-> s
@@ -263,11 +263,11 @@
             "submit"]
            (when loading
              [ui/spinner])]
-          (when supabase-client
+          (when algolia-client
             [:div {:style {:display :flex}}
              "Search: "
              [ui/search
-              {:supabase-client supabase-client
+              {:algolia-client algolia-client
                :on-search       (fn [res]
                                   (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
@@ -317,15 +317,15 @@
                                                                algolia-api-key)}))
                                    (swap! !state assoc
                                           :instantdb-app-id instantdb-app-id-persisted
-                                          :algolia {:app-id algolia-app-id
-                                                    :api-keys algolia-api-key})))
+                                          :algolia {:app-id  algolia-app-id
+                                                    :api-key algolia-api-key})))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys [instantdb-app-id]
-                                        {algolia-app-id :app-id
+                                 (let [{:keys                      [instantdb-app-id]
+                                        {algolia-app-id  :app-id
                                          algolia-api-key :api-key} :algolia} @!state
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
@@ -392,8 +392,8 @@
                                                                       (when (seq algolia-app-id)
                                                                         (swap! !ref-state
                                                                                merge
-                                                                               {:algoli-client (algolia/algoliasearch
-                                                                                                 algolia-app-id s)}))
+                                                                               {:algolia-client (algolia/algoliasearch
+                                                                                                  algolia-app-id s)}))
                                                                       (swap! !state assoc-in [:algolia :api-key] s))
                                                                     (do
                                                                       (js/localStorage.removeItem "algolia-api-key")
@@ -403,24 +403,25 @@
 
                                                        :value   algolia-api-key}]]
                                       [:button {:on-click (fn []
-                                                            #_(let [chat-promises (for [{:keys [id text]} (:chats @!state)]
-                                                                                    (-> ^js/Object supabase-client
-                                                                                        (.from "chats")
-                                                                                        (.insert #js{:id id :text text})))
-                                                                    response-promises (for [{:keys   [responses]
-                                                                                             chat_id :id}
-                                                                                            (:chats @!state)
-                                                                                            {:keys [id text]} responses]
-                                                                                        (-> ^js/Object supabase-client
-                                                                                            (.from "responses")
-                                                                                            (.insert #js{:id id :text text :chat_id chat_id})))]
-
-
-                                                                (-> (js/Promise.all chat-promises)
-                                                                    (.then #(js/Promise.all response-promises))
-                                                                    (.then #(js/alert "done!")))))
-
-
+                                                            (let [{:keys [chats]} @!state
+                                                                  response-reqs (for [{:keys   [responses] :as c
+                                                                                       chat-id :id} (:chats @!state)
+                                                                                      {:keys [id] :as r} responses]
+                                                                                  {:action    "addObject"
+                                                                                   :indexName a/index-name
+                                                                                   :body      (assoc r :objectID id
+                                                                                                       :chat_id chat-id)})
+                                                                  chat-reqs (->> chats
+                                                                                 (map (fn [{:keys [id] :as c}]
+                                                                                        {:action "addObject"
+                                                                                         :indexName a/index-name
+                                                                                         :body (-> (assoc c :objectID id)
+                                                                                                   (dissoc :responses))})))]
+                                                              (-> (.multipleBatch
+                                                                    ^js/Object algolia-client
+                                                                    (clj->js {:requests (concat chat-reqs response-reqs)}))
+                                                                  (.then #(js/alert "Done!"))
+                                                                  (.catch #(js/alert "Something went wrong!")))))
 
                                                 :disabled (or (empty? algolia-api-key)
                                                               (empty? algolia-app-id))}
