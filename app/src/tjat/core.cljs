@@ -10,6 +10,7 @@
             [tjat.db :as db]
             [tjat.ui :as ui]
             ["@instantdb/core" :as instantdb]
+            ["algoliasearch" :as algolia]
             ["@supabase/supabase-js" :as supabase]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
@@ -297,7 +298,9 @@
     (r/create-class
       {:component-did-mount    (fn []
                                  (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
-                                       supabase-key (js/localStorage.getItem "supabase-key")]
+                                       supabase-key (js/localStorage.getItem "supabase-key")
+                                       algolia-app-id (js/localStorage.getItem "algolia-app-id")
+                                       algolia-api-key (js/localStorage.getItem "algolia-api-key")]
                                    (when (seq instantdb-app-id-persisted)
                                      (swap! !ref-state
                                             merge
@@ -305,29 +308,32 @@
                                                                  :subscriptions {:chats {:responses {}}}
                                                                  :!state        !state
                                                                  :on-error      instant-db-error-handler})))
-                                   (when (seq supabase-key)
+                                   (when (and (seq algolia-app-id)
+                                              (seq algolia-api-key))
                                      (swap! !ref-state
                                             merge
-                                            {:supabase-client (supabase/createClient
-                                                                supabase-url
-                                                                supabase-key)}))
+                                            {:algolia-client (algolia/algoliasearch
+                                                               algolia-app-id
+                                                               algolia-api-key)}))
                                    (swap! !state assoc
                                           :instantdb-app-id instantdb-app-id-persisted
-                                          :supabase-key supabase-key)))
+                                          :algolia {:app-id algolia-app-id
+                                                    :api-keys algolia-api-key})))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys [instantdb-app-id supabase-key]} @!state
-                                       {:keys [unsubscribe db supabase-client]} @!ref-state]
+                                 (let [{:keys [instantdb-app-id]
+                                        {algolia-app-id :app-id
+                                         algolia-api-key :api-key} :algolia} @!state
+                                       {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
-                                    [:details
-
+                                    [:details {:open true}
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
-                                      [:a {:href "https://www.instantdb.com/dash"
+                                      [:a {:href   "https://www.instantdb.com/dash"
                                            :target "_blank"}
                                        "InstantDB"]
                                       " app-id: "
@@ -344,11 +350,11 @@
                                                                          (js/localStorage.setItem "instantdb-app-id" s)
                                                                          (swap! !ref-state
                                                                                 merge
-                                                                                 (db/init-instant-db
-                                                                                   {:app-id        s
-                                                                                    :subscriptions {:chats {:responses {}}}
-                                                                                    :!state        !state
-                                                                                    :on-error instant-db-error-handler}))
+                                                                                (db/init-instant-db
+                                                                                  {:app-id        s
+                                                                                   :subscriptions {:chats {:responses {}}}
+                                                                                   :!state        !state
+                                                                                   :on-error      instant-db-error-handler}))
                                                                          (swap! !state assoc :instantdb-app-id s))
                                                                        (do
                                                                          (js/localStorage.removeItem "instantdb-app-id")
@@ -358,52 +364,70 @@
                                                       :value   instantdb-app-id}]]
                                      [:div
                                       [:div {:style {:display :flex}}
-                                       [:a {:href   "https://supabase.com/dashboard/projects"
-                                            :target "_blank"}
-                                        "Supabase"]
-                                       " key: "
+                                       "Algolia App-id: "
+                                       [ui/edit-field {:secret? false
+                                                       :on-save (fn [s]
+                                                                  (if (seq s)
+                                                                    (do
+                                                                      (js/localStorage.setItem "algolia-app-id" s)
+                                                                      (when (seq algolia-api-key)
+                                                                        (swap! !ref-state
+                                                                               merge
+                                                                               {:algoli-client (algolia/algoliasearch
+                                                                                                 s algolia-api-key)}))
+                                                                      (swap! !state assoc-in [:algolia :app-id] s))
+                                                                    (do
+                                                                      (js/localStorage.removeItem "algolia-app-id")
+                                                                      (swap! !ref-state dissoc :algolia-client)
+                                                                      (swap! !state update :algolia dissoc :app-id))))
+
+
+                                                       :value   algolia-app-id}]]
+                                      [:div {:style {:display :flex}}
+                                       "Algolia API key: "
                                        [ui/edit-field {:on-save (fn [s]
                                                                   (if (seq s)
                                                                     (do
-                                                                      (js/localStorage.setItem "supabase-key" s)
-                                                                      (swap! !ref-state
-                                                                             merge
-                                                                             {:supabase-client (supabase/createClient
-                                                                                                 supabase-url
-                                                                                                 s)})
-                                                                      (swap! !state assoc :supabase-key s))
+                                                                      (js/localStorage.setItem "algolia-api-key" s)
+                                                                      (when (seq algolia-app-id)
+                                                                        (swap! !ref-state
+                                                                               merge
+                                                                               {:algoli-client (algolia/algoliasearch
+                                                                                                 algolia-app-id s)}))
+                                                                      (swap! !state assoc-in [:algolia :api-key] s))
                                                                     (do
-                                                                      (js/localStorage.removeItem "supabase-key")
-                                                                      (swap! !ref-state dissoc :supabase-client)
-                                                                      (swap! !state dissoc :supabase-key))))
+                                                                      (js/localStorage.removeItem "algolia-api-key")
+                                                                      (swap! !ref-state dissoc :algolia-client)
+                                                                      (swap! !state update :algolia dissoc :api-key))))
 
 
-                                                       :value   supabase-key}]]
+                                                       :value   algolia-api-key}]]
                                       [:button {:on-click (fn []
-                                                            (let [chat-promises (for [{:keys [id text]} (:chats @!state)]
-                                                                                  (-> ^js/Object supabase-client
-                                                                                      (.from "chats")
-                                                                                      (.insert #js{:id id :text text})))
-                                                                  response-promises (for [{:keys [responses]
-                                                                                           chat_id :id}
-                                                                                          (:chats @!state)
-                                                                                          {:keys [id text]} responses]
-                                                                                      (-> ^js/Object supabase-client
-                                                                                          (.from "responses")
-                                                                                          (.insert #js{:id id :text text :chat_id chat_id})))]
+                                                            #_(let [chat-promises (for [{:keys [id text]} (:chats @!state)]
+                                                                                    (-> ^js/Object supabase-client
+                                                                                        (.from "chats")
+                                                                                        (.insert #js{:id id :text text})))
+                                                                    response-promises (for [{:keys   [responses]
+                                                                                             chat_id :id}
+                                                                                            (:chats @!state)
+                                                                                            {:keys [id text]} responses]
+                                                                                        (-> ^js/Object supabase-client
+                                                                                            (.from "responses")
+                                                                                            (.insert #js{:id id :text text :chat_id chat_id})))]
 
 
-                                                              (-> (js/Promise.all chat-promises)
-                                                                  (.then #(js/Promise.all response-promises))
-                                                                  (.then #(js/alert "done!")))))
+                                                                (-> (js/Promise.all chat-promises)
+                                                                    (.then #(js/Promise.all response-promises))
+                                                                    (.then #(js/alert "done!")))))
 
 
 
-                                                :disabled (nil? supabase-key)}
+                                                :disabled (or (empty? algolia-api-key)
+                                                              (empty? algolia-app-id))}
 
-                                       "Import to Supabase"]]]
-                                    [app {:db              db
-                                          :supabase-client supabase-client}
+                                       "Import to Algolia"]]]
+                                    [app {:db             db
+                                          :algolia-client algolia-client}
                                      !state]]))})))
 
 (defn ^:dev/after-load main []

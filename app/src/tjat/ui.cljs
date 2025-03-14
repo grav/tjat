@@ -11,11 +11,18 @@
             text (or text value)]
         [:div
          [:input {:ref #(reset! !input-ref %)
-                  :value     (if (or is-editing? (not secret?))
-                               (or text "[none]")
-                               (or (and text
-                                        (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF))))
-                                   "[none]"))
+                  :value
+                  (cond
+                    is-editing? text
+
+                    (and (not secret?) (seq text))
+                    text
+
+                    (and secret? (not is-editing?) (seq text))
+                    (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF)))
+
+                    (and (not is-editing?) (empty? text))
+                    "[none]")
                   :on-change (fn [e]
                                (swap! !state assoc :text (.-value (.-target e))))
                   :on-focus #(swap! !state assoc :is-editing? true)
