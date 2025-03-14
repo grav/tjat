@@ -1,20 +1,21 @@
 (ns tjat.ui
   (:require [reagent.core :as r]))
 
-(defn secret-edit-field []
+(defn edit-field []
   (let [!state (r/atom nil)
         !button-ref (atom nil)
         !input-ref (atom nil)]
-    (fn [{:keys [value on-save]}]
+    (fn [{:keys [value on-save secret?]
+          :or {secret? true}}]
       (let [{:keys [is-editing? text]} @!state
             text (or text value)]
         [:div
          [:input {:ref #(reset! !input-ref %)
-                  :value     (if is-editing?
-                               text
-                               (if text
-                                 (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF)))
-                                 "[none]"))
+                  :value     (if (or is-editing? (not secret?))
+                               (or text "[none]")
+                               (or (and text
+                                        (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF))))
+                                   "[none]"))
                   :on-change (fn [e]
                                (swap! !state assoc :text (.-value (.-target e))))
                   :on-focus #(swap! !state assoc :is-editing? true)

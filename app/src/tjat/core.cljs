@@ -149,14 +149,14 @@
                    [:b (name provider)]]
              [:div {:style {:display :flex}}
               [:div "Api key: "]
-              [ui/secret-edit-field {:on-save (fn [k]
-                                                (let [api-keys (if (seq k)
-                                                                 (merge api-keys
-                                                                        {provider k})
-                                                                 (dissoc api-keys provider))]
-                                                  (swap! !state assoc :api-keys api-keys)
-                                                  (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                                     :value   (get api-keys provider)}]]])
+              [ui/edit-field {:on-save      (fn [k]
+                                              (let [api-keys (if (seq k)
+                                                               (merge api-keys
+                                                                      {provider k})
+                                                               (dissoc api-keys provider))]
+                                                (swap! !state assoc :api-keys api-keys)
+                                                (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
+                              :value (get api-keys provider)}]]])
 
           [:p
            [:textarea
@@ -297,30 +297,30 @@
                                            :target "_blank"}
                                        "InstantDB"]
                                       " app-id: "
-                                      [ui/secret-edit-field {:on-save (fn [s]
-                                                                        (and
-                                                                          (or (or (empty? s)
-                                                                                  (seq instantdb-app-id))
-                                                                              (js/confirm "Enabling InstantDB will loose all local changes"))
-                                                                          (do
-                                                                            (when unsubscribe
-                                                                              (unsubscribe))
-                                                                            (if (seq s)
-                                                                              (do
-                                                                                (js/localStorage.setItem "instantdb-app-id" s)
-                                                                                (reset! !ref-state
-                                                                                        (db/init-instant-db
-                                                                                          {:app-id        s
-                                                                                           :subscriptions {:chats {:responses {}}}
-                                                                                           :!state        !state
-                                                                                           :on-error instant-db-error-handler}))
-                                                                                (swap! !state assoc :instantdb-app-id s))
-                                                                              (do
-                                                                                (js/localStorage.removeItem "instantdb-app-id")
-                                                                                (reset! !ref-state nil)
-                                                                                (swap! !state dissoc :chats :instantdb-app-id))))))
+                                      [ui/edit-field {:on-save      (fn [s]
+                                                                      (and
+                                                                        (or (or (empty? s)
+                                                                                (seq instantdb-app-id))
+                                                                            (js/confirm "Enabling InstantDB will loose all local changes"))
+                                                                        (do
+                                                                          (when unsubscribe
+                                                                            (unsubscribe))
+                                                                          (if (seq s)
+                                                                            (do
+                                                                              (js/localStorage.setItem "instantdb-app-id" s)
+                                                                              (reset! !ref-state
+                                                                                      (db/init-instant-db
+                                                                                        {:app-id        s
+                                                                                         :subscriptions {:chats {:responses {}}}
+                                                                                         :!state        !state
+                                                                                         :on-error instant-db-error-handler}))
+                                                                              (swap! !state assoc :instantdb-app-id s))
+                                                                            (do
+                                                                              (js/localStorage.removeItem "instantdb-app-id")
+                                                                              (reset! !ref-state nil)
+                                                                              (swap! !state dissoc :chats :instantdb-app-id))))))
 
-                                                             :value   instantdb-app-id}]]]
+                                                      :value instantdb-app-id}]]]
                                     [app {:db db} !state]]))})))
 
 (defn ^:dev/after-load main []
