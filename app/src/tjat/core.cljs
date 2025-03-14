@@ -331,54 +331,54 @@
                                            :target "_blank"}
                                        "InstantDB"]
                                       " app-id: "
-                                      [ui/secret-edit-field {:on-save (fn [s]
-                                                                        (and
-                                                                          (or (or (empty? s)
-                                                                                  (seq instantdb-app-id))
-                                                                              (js/confirm "Enabling InstantDB will loose all local changes"))
-                                                                          (do
-                                                                            (when unsubscribe
-                                                                              (unsubscribe))
-                                                                            (if (seq s)
-                                                                              (do
-                                                                                (js/localStorage.setItem "instantdb-app-id" s)
-                                                                                (swap! !ref-state
-                                                                                       merge
-                                                                                        (db/init-instant-db
-                                                                                          {:app-id        s
-                                                                                           :subscriptions {:chats {:responses {}}}
-                                                                                           :!state        !state
-                                                                                           :on-error instant-db-error-handler}))
-                                                                                (swap! !state assoc :instantdb-app-id s))
-                                                                              (do
-                                                                                (js/localStorage.removeItem "instantdb-app-id")
-                                                                                (swap! !ref-state dissoc :db :unsubscribe)
-                                                                                (swap! !state dissoc :chats :instantdb-app-id))))))
+                                      [ui/edit-field {:on-save (fn [s]
+                                                                 (and
+                                                                   (or (or (empty? s)
+                                                                           (seq instantdb-app-id))
+                                                                       (js/confirm "Enabling InstantDB will loose all local changes"))
+                                                                   (do
+                                                                     (when unsubscribe
+                                                                       (unsubscribe))
+                                                                     (if (seq s)
+                                                                       (do
+                                                                         (js/localStorage.setItem "instantdb-app-id" s)
+                                                                         (swap! !ref-state
+                                                                                merge
+                                                                                 (db/init-instant-db
+                                                                                   {:app-id        s
+                                                                                    :subscriptions {:chats {:responses {}}}
+                                                                                    :!state        !state
+                                                                                    :on-error instant-db-error-handler}))
+                                                                         (swap! !state assoc :instantdb-app-id s))
+                                                                       (do
+                                                                         (js/localStorage.removeItem "instantdb-app-id")
+                                                                         (swap! !ref-state dissoc :db :unsubscribe)
+                                                                         (swap! !state dissoc :chats :instantdb-app-id))))))
 
-                                                             :value   instantdb-app-id}]]
+                                                      :value   instantdb-app-id}]]
                                      [:div
                                       [:div {:style {:display :flex}}
                                        [:a {:href   "https://supabase.com/dashboard/projects"
                                             :target "_blank"}
                                         "Supabase"]
                                        " key: "
-                                       [ui/secret-edit-field {:on-save (fn [s]
-                                                                         (if (seq s)
-                                                                           (do
-                                                                             (js/localStorage.setItem "supabase-key" s)
-                                                                             (swap! !ref-state
-                                                                                    merge
-                                                                                    {:supabase-client (supabase/createClient
-                                                                                                        supabase-url
-                                                                                                        s)})
-                                                                             (swap! !state assoc :supabase-key s))
-                                                                           (do
-                                                                             (js/localStorage.removeItem "supabase-key")
-                                                                             (swap! !ref-state dissoc :supabase-client)
-                                                                             (swap! !state dissoc :supabase-key))))
+                                       [ui/edit-field {:on-save (fn [s]
+                                                                  (if (seq s)
+                                                                    (do
+                                                                      (js/localStorage.setItem "supabase-key" s)
+                                                                      (swap! !ref-state
+                                                                             merge
+                                                                             {:supabase-client (supabase/createClient
+                                                                                                 supabase-url
+                                                                                                 s)})
+                                                                      (swap! !state assoc :supabase-key s))
+                                                                    (do
+                                                                      (js/localStorage.removeItem "supabase-key")
+                                                                      (swap! !ref-state dissoc :supabase-client)
+                                                                      (swap! !state dissoc :supabase-key))))
 
 
-                                                              :value   supabase-key}]]
+                                                       :value   supabase-key}]]
                                       [:button {:on-click (fn []
                                                             (let [chat-promises (for [{:keys [id text]} (:chats @!state)]
                                                                                   (-> ^js/Object supabase-client
