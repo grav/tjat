@@ -436,7 +436,11 @@
                                     [app {:db             db
                                           :algolia-client algolia-client}
                                      !state]]))})))
+(defn configcat-view []
+  (let []
+    (fn []
+      [instantdb-view])))
 
 (defn ^:dev/after-load main []
-  (.render root (r/as-element [instantdb-view])))
+  (.render root (r/as-element [configcat-view])))
 
