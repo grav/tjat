@@ -83,8 +83,8 @@
     ["foo" "bar"]))
 
 (def config
-  (-> (rc/inline "./config.edn")
-      edn/read-string))
+  #_(-> (rc/inline "./config.edn")
+        edn/read-string))
 
 (do
   (defn make-config [{:keys [model provider api-keys]}]
@@ -95,9 +95,9 @@
           {:keys [models]
            :as config} (get-in config [:providers provider])
           {:keys [model-name post-process body-params]
-           :or   {model-name model}} (if model
-                                       (get models model)
-                                       (first (vals models)))
+           :or   {model-name (name model)}} (if model
+                                              (get models model)
+                                              (first (vals models)))
           config-fns (-> (get allem.config/functions provider)
                          allem.config/normalize-config)]
       (merge
