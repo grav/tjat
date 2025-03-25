@@ -83,8 +83,8 @@
     ["foo" "bar"]))
 
 (def config
-  #_(-> (rc/inline "./config.edn")
-        edn/read-string))
+  (-> (rc/inline "./config.edn")
+      edn/read-string))
 
 (do
   (defn make-config [{:keys [model provider api-keys]}]
