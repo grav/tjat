@@ -25,10 +25,6 @@
   {:type "text"
    :text s})
 
-(def groq
-  {:headers-fn bearer-headers-fn
-   :reply-fn openai-reply-fn})
-
 (def functions
   {:anthropic
    ;;; https://docs.anthropic.com/en/api/messages
