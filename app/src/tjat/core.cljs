@@ -9,7 +9,9 @@
             ["showdown" :as showdown]
             [tjat.db :as db]
             [tjat.ui :as ui]
-            ["@instantdb/core" :as instantdb]))
+            [tjat.algolia :as a]
+            ["@instantdb/core" :as instantdb]
+            ["algoliasearch" :as algolia]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -70,7 +72,10 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections]}
+    (fn [{:keys [chats selected-chat-id selections]
+          {search-response-ids :responses
+           search-chat-ids     :chats
+           :as search-results} :search-results}
          {:keys [on-chat-select]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
@@ -82,7 +87,10 @@
         [:div {:style {:display :flex
                        :padding 10}}
          [:div (for [{:keys [id text]} (reverse chats)]
-                 ^{:key id} [:div {:on-click #(on-chat-select id)}
+                 ^{:key id} [:div {:on-click #(on-chat-select id)
+                                   :style {:display (when (and search-results
+                                                               (nil? (search-chat-ids id)))
+                                                      :none)}}
                              [:div {:style          {:font-weight      900
                                                      :background-color (or
                                                                          (when (= hover id) :lightblue)
@@ -108,13 +116,15 @@
          [:div {:style {:padding 10}}
           [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
           [:hr]
-          [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                             (first responses))]]]))))
+          (when (or (nil? search-results)
+                    (search-response-ids selected-response-id))
+            [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                               (first responses))])]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
-    (fn [{:keys [db]} !state]
+    (fn [{:keys [db algolia-client]} !state]
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
@@ -149,14 +159,14 @@
                    [:b (name provider)]]
              [:div {:style {:display :flex}}
               [:div "Api key: "]
-              [ui/secret-edit-field {:on-save (fn [k]
-                                                (let [api-keys (if (seq k)
-                                                                 (merge api-keys
-                                                                        {provider k})
-                                                                 (dissoc api-keys provider))]
-                                                  (swap! !state assoc :api-keys api-keys)
-                                                  (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                                     :value   (get api-keys provider)}]]])
+              [ui/edit-field {:on-save      (fn [k]
+                                              (let [api-keys (if (seq k)
+                                                               (merge api-keys
+                                                                      {provider k})
+                                                               (dissoc api-keys provider))]
+                                                (swap! !state assoc :api-keys api-keys)
+                                                (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
+                              :value (get api-keys provider)}]]])
 
           [:p
            [:textarea
@@ -178,6 +188,14 @@
                                                           new-chat (aget (.-chats ^js/Object tx) chat-id)]
                                                       (.transact db
                                                                  (.update new-chat #js{:text text}))
+                                                      (when algolia-client
+                                                        (-> (.saveObject ^js/Object algolia-client
+                                                                         (clj->js
+                                                                           {:indexName a/index-name-chats
+                                                                            :body      {:id       chat-id
+                                                                                        :objectID chat-id
+                                                                                        :text     text}}))
+                                                            (.then js/console.log)))
                                                       chat-id)
                                                     ;; local-only
                                                     (let [id (str (random-uuid))]
@@ -206,6 +224,15 @@
                                                                        (-> new-response
                                                                            (.update (clj->js response))
                                                                            (.link #js {:chats chat-id}))))
+                                                       (when algolia-client
+                                                         (-> (.saveObject ^js/Object algolia-client
+                                                                          (clj->js {:indexName a/index-name-chats
+                                                                                    :body      {:id      response-id
+                                                                                                :objectID chat-id
+                                                                                                :chat_id chat-id
+                                                                                                :text    v}}))
+                                                             (.then js/console.log)))
+
                                                        (swap! !state (fn [s]
                                                                        (-> s
 
@@ -229,24 +256,26 @@
                                                                            (assoc :selected-chat-id chat-id))))
                                                        100)))))
                                         (.catch (fn [e]
-                                                  (js/alert (str "Error: Got status " (:status (ex-data e))
-                                                                 " from API"))
+                                                  (js/alert
+                                                    (cond
+                                                      (some-> (ex-data e) :status)
+                                                      (str "Error: Got status " (:status (ex-data e))
+                                                           " from API")
+                                                      :else
+                                                      (str e)))
                                                   (swap! !state assoc :loading false))))))}
 
 
             "submit"]
            (when loading
-             [:svg.spinner
-              {:width   "20"
-               :height  "20"
-               :viewBox "0 0 50 50"}
-              [:circle.spinner-circle
-               {:cx           "25"
-                :cy           "25"
-                :r            "20"
-                :fill         "none"
-                :stroke       "#007bff"
-                :stroke-width "4"}]])]
+             [ui/spinner])]
+          (when algolia-client
+            [:div {:style {:display :flex}}
+             "Search: "
+             [ui/search
+              {:algolia-client algolia-client
+               :on-search      (fn [res]
+                                 (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu @!state
             {:on-chat-select     (fn [selected-chat-id]
@@ -272,56 +301,141 @@
   (let [!ref-state (atom nil)]
     (r/create-class
       {:component-did-mount    (fn []
-                                 (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")]
+                                 (let [instantdb-app-id-persisted (js/localStorage.getItem "instantdb-app-id")
+                                       algolia-app-id (js/localStorage.getItem "algolia-app-id")
+                                       algolia-api-key (js/localStorage.getItem "algolia-api-key")]
                                    (when (seq instantdb-app-id-persisted)
-                                     (reset! !ref-state
-                                             (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                                  :subscriptions {:chats {:responses {}}}
-                                                                  :!state        !state
-                                                                  :on-error instant-db-error-handler})))
-                                   (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)))
+                                     (swap! !ref-state
+                                            merge
+                                            (db/init-instant-db {:app-id        instantdb-app-id-persisted
+                                                                 :subscriptions {:chats {:responses {}}}
+                                                                 :!state        !state
+                                                                 :on-error      instant-db-error-handler})))
+                                   (when (and (seq algolia-app-id)
+                                              (seq algolia-api-key))
+                                     (swap! !ref-state
+                                            merge
+                                            {:algolia-client (algolia/algoliasearch
+                                                               algolia-app-id
+                                                               algolia-api-key)}))
+                                   (swap! !state assoc
+                                          :instantdb-app-id instantdb-app-id-persisted
+                                          :algolia {:app-id  algolia-app-id
+                                                    :api-key algolia-api-key})))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys [instantdb-app-id]} @!state
-                                       {:keys [unsubscribe db]} @!ref-state]
+                                 (let [{:keys                      [instantdb-app-id]
+                                        {algolia-app-id  :app-id
+                                         algolia-api-key :api-key} :algolia} @!state
+                                       {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
-                                    [:details
-
+                                    [:details {:open false}
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
-                                      [:a {:href "https://www.instantdb.com/dash"
+                                      [:a {:href   "https://www.instantdb.com/dash"
                                            :target "_blank"}
                                        "InstantDB"]
                                       " app-id: "
-                                      [ui/secret-edit-field {:on-save (fn [s]
-                                                                        (and
-                                                                          (or (or (empty? s)
-                                                                                  (seq instantdb-app-id))
-                                                                              (js/confirm "Enabling InstantDB will loose all local changes"))
-                                                                          (do
-                                                                            (when unsubscribe
-                                                                              (unsubscribe))
-                                                                            (if (seq s)
-                                                                              (do
-                                                                                (js/localStorage.setItem "instantdb-app-id" s)
-                                                                                (reset! !ref-state
-                                                                                        (db/init-instant-db
-                                                                                          {:app-id        s
-                                                                                           :subscriptions {:chats {:responses {}}}
-                                                                                           :!state        !state
-                                                                                           :on-error instant-db-error-handler}))
-                                                                                (swap! !state assoc :instantdb-app-id s))
-                                                                              (do
-                                                                                (js/localStorage.removeItem "instantdb-app-id")
-                                                                                (reset! !ref-state nil)
-                                                                                (swap! !state dissoc :chats :instantdb-app-id))))))
+                                      [ui/edit-field {:on-save (fn [s]
+                                                                 (and
+                                                                   (or (or (empty? s)
+                                                                           (seq instantdb-app-id))
+                                                                       (js/confirm "Enabling InstantDB will loose all local changes"))
+                                                                   (do
+                                                                     (when unsubscribe
+                                                                       (unsubscribe))
+                                                                     (if (seq s)
+                                                                       (do
+                                                                         (js/localStorage.setItem "instantdb-app-id" s)
+                                                                         (swap! !ref-state
+                                                                                merge
+                                                                                (db/init-instant-db
+                                                                                  {:app-id        s
+                                                                                   :subscriptions {:chats {:responses {}}}
+                                                                                   :!state        !state
+                                                                                   :on-error      instant-db-error-handler}))
+                                                                         (swap! !state assoc :instantdb-app-id s))
+                                                                       (do
+                                                                         (js/localStorage.removeItem "instantdb-app-id")
+                                                                         (swap! !ref-state dissoc :db :unsubscribe)
+                                                                         (swap! !state dissoc :chats :instantdb-app-id))))))
 
-                                                             :value   instantdb-app-id}]]]
-                                    [app {:db db} !state]]))})))
+                                                      :value   instantdb-app-id}]]
+                                     [:div
+                                      [:div {:style {:display :flex}}
+                                       [:a {:href "https://dashboard.algolia.com/"
+                                            :target "_blank"}
+                                        "Algolia"]
+                                       " App-id: "
+                                       [ui/edit-field {:secret? false
+                                                       :on-save (fn [s]
+                                                                  (if (seq s)
+                                                                    (do
+                                                                      (js/localStorage.setItem "algolia-app-id" s)
+                                                                      (when (seq algolia-api-key)
+                                                                        (swap! !ref-state
+                                                                               merge
+                                                                               {:algoli-client (algolia/algoliasearch
+                                                                                                 s algolia-api-key)}))
+                                                                      (swap! !state assoc-in [:algolia :app-id] s))
+                                                                    (do
+                                                                      (js/localStorage.removeItem "algolia-app-id")
+                                                                      (swap! !ref-state dissoc :algolia-client)
+                                                                      (swap! !state update :algolia dissoc :app-id))))
+
+
+                                                       :value   algolia-app-id}]]
+                                      [:div {:style {:display :flex}}
+                                       "Algolia API key (write): "
+                                       [ui/edit-field {:on-save (fn [s]
+                                                                  (if (seq s)
+                                                                    (do
+                                                                      (js/localStorage.setItem "algolia-api-key" s)
+                                                                      (when (seq algolia-app-id)
+                                                                        (swap! !ref-state
+                                                                               merge
+                                                                               {:algolia-client (algolia/algoliasearch
+                                                                                                  algolia-app-id s)}))
+                                                                      (swap! !state assoc-in [:algolia :api-key] s))
+                                                                    (do
+                                                                      (js/localStorage.removeItem "algolia-api-key")
+                                                                      (swap! !ref-state dissoc :algolia-client)
+                                                                      (swap! !state update :algolia dissoc :api-key))))
+
+
+                                                       :value   algolia-api-key}]]
+                                      [:button {:on-click (fn []
+                                                            (let [{:keys [chats]} @!state
+                                                                  response-reqs (for [{:keys   [responses] :as c
+                                                                                       chat-id :id} (:chats @!state)
+                                                                                      {:keys [id] :as r} responses]
+                                                                                  {:action    "addObject"
+                                                                                   :indexName a/index-name-responses
+                                                                                   :body      (assoc r :objectID id
+                                                                                                       :chat_id chat-id)})
+                                                                  chat-reqs (->> chats
+                                                                                 (map (fn [{:keys [id] :as c}]
+                                                                                        {:action "addObject"
+                                                                                         :indexName a/index-name-chats
+                                                                                         :body (-> (assoc c :objectID id)
+                                                                                                   (dissoc :responses))})))]
+                                                              (-> (.multipleBatch
+                                                                    ^js/Object algolia-client
+                                                                    (clj->js {:requests (concat chat-reqs response-reqs)}))
+                                                                  (.then #(js/alert "Done!"))
+                                                                  (.catch #(js/alert "Something went wrong!")))))
+
+                                                :disabled (or (empty? algolia-api-key)
+                                                              (empty? algolia-app-id))}
+
+                                       "Import to Algolia"]]]
+                                    [app {:db             db
+                                          :algolia-client algolia-client}
+                                     !state]]))})))
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
