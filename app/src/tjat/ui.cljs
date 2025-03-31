@@ -77,47 +77,52 @@
 (defn search []
   (let [!state (r/atom nil)]
     (r/create-class
-      {:component-will-unmount (fn []
-                                 (let [{:keys [search-timer]} @!state]
-                                   (when search-timer
-                                     (js/clearTimeout search-timer))))
-       :reagent-render           (fn [{:keys [algolia-client on-search]
-                                       :or {on-search println}}]
-                                   (let [{:keys [search search-timer loading]} @!state]
-                                     [:div
-                                      [:input {:type      :text
-                                               :value     search
-                                               :on-change (fn [e]
-                                                            (when search-timer
-                                                              (js/clearTimeout search-timer))
-                                                            (let [search (.-value (.-target e))]
-                                                              (when (empty? search)
-                                                                (on-search nil))
-                                                              (swap! !state assoc :search (.-value (.-target e))
-                                                                     :search-timer (js/setTimeout
-                                                                                     (fn []
-                                                                                       (js/clearTimeout search-timer)
-                                                                                       (let [{:keys [search]} @!state]
-                                                                                         (when (seq search)
-                                                                                           (swap! !state assoc :loading true)
-                                                                                           (-> (.search ^js/Object algolia-client
-                                                                                                        (clj->js {:requests [{:indexName a/index-name-chats
-                                                                                                                              :query     search}
-                                                                                                                             {:indexName a/index-name-responses
-                                                                                                                              :query search}]}))
-                                                                                               (.then (fn [r]
-                                                                                                        (let [{[{chats :hits} {responses :hits}] :results} (->> (js->clj r :keywordize-keys true))]
-                                                                                                          (js/console.log chats responses)
-                                                                                                          (swap! !state assoc :loading false)
-                                                                                                          (on-search {:responses (->> responses
-                                                                                                                                      (map :id)
-                                                                                                                                      set)
-                                                                                                                      :chats     (set (concat (map :id chats)
-                                                                                                                                              (map :chat_id responses)))}))))))))
+      {:component-will-unmount
+       (fn []
+         (let [{:keys [search-timer]} @!state]
+           (when search-timer
+             (js/clearTimeout search-timer))))
+       :reagent-render
+       (fn [{:keys [algolia-client on-search]
+             :or {on-search println}}]
+         (let [{:keys [search search-timer loading]} @!state]
+           [:div
+            [:input
+             {:type      :text
+              :value     search
+              :on-change
+              (fn [e]
+                (when search-timer
+                  (js/clearTimeout search-timer))
+                (let [search (.-value (.-target e))]
+                  (when (empty? search)
+                    (on-search nil))
+                  (swap! !state assoc :search (.-value (.-target e))
+                         :search-timer (js/setTimeout
+                                         (fn []
+                                           (js/clearTimeout search-timer)
+                                           (let [{:keys [search]} @!state]
+                                             (when (seq search)
+                                               (swap! !state assoc :loading true)
+                                               (-> (.search ^js/Object algolia-client
+                                                            (clj->js {:requests [{:indexName a/index-name-chats
+                                                                                  :query     search}
+                                                                                 {:indexName a/index-name-responses
+                                                                                  :query search}]}))
+                                                   (.then (fn [r]
+                                                            (let [{[{chats :hits} {responses :hits}] :results} (->> (js->clj r :keywordize-keys true))]
+                                                              (js/console.log chats responses)
+                                                              (swap! !state assoc :loading false)
+                                                              (on-search (doto {:responses (->> responses
+                                                                                                (map :id)
+                                                                                                set)
+                                                                                :chats     (set (concat (map :id chats)
+                                                                                                        (map :chat_id responses)))}
+                                                                           println)))))))))
 
-                                                                                     500))))}]
-                                      [:button {:on-click (fn [_]
-                                                            (swap! !state dissoc :search)
-                                                            (on-search nil))} "X"]
-                                      (when loading
-                                        [spinner])]))})))
+                                         500))))}]
+            [:button {:on-click (fn [_]
+                                  (swap! !state dissoc :search)
+                                  (on-search nil))} "X"]
+            (when loading
+              [spinner])]))})))
