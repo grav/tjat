@@ -1,10 +1,14 @@
 (ns apple-mcp-runner
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]))
+  (:require [clojure.java.io :as io]))
+
+;; example request:
+;; {"jsonrpc": "2.0","id": 1,"method":"tools/list","params": {}}
 
 (defn start-process
   "Starts the apple-mcp process with the given command."
   []
+  ;; install via
+  ;; npx -y @smithery/cli@latest install @Dhravya/apple-mcp
   (let [pb (ProcessBuilder. ["/Users/mikkelriiskjaergravgaard/.bun/bin/bunx" "apple-mcp@latest"])
         process (.start pb)]
     process))
