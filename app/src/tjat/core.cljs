@@ -192,8 +192,7 @@
                                                         (-> (.saveObject ^js/Object algolia-client
                                                                          (clj->js
                                                                            {:indexName a/index-name-chats
-                                                                            :body      {:id       chat-id
-                                                                                        :objectID chat-id
+                                                                            :body      {:objectID chat-id
                                                                                         :text     text}}))
                                                             (.then js/console.log)))
                                                       chat-id)
@@ -226,9 +225,8 @@
                                                                            (.link #js {:chats chat-id}))))
                                                        (when algolia-client
                                                          (-> (.saveObject ^js/Object algolia-client
-                                                                          (clj->js {:indexName a/index-name-chats
-                                                                                    :body      {:id      response-id
-                                                                                                :objectID chat-id
+                                                                          (clj->js {:indexName a/index-name-responses
+                                                                                    :body      {:objectID response-id
                                                                                                 :chat_id chat-id
                                                                                                 :text    v}}))
                                                              (.then js/console.log)))
