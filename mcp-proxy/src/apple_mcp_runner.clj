@@ -47,3 +47,5 @@
             (send-message process input)
             (recur)))))))
 
+(comment
+  (main))
