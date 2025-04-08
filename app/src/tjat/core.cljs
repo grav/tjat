@@ -287,7 +287,9 @@
           [ui/error-boundary
            [chat-menu @!state
             {:on-chat-remove (fn [chat-id]
-                               (js/alert 'chat-id))
+                               (.transact db
+                                          (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
+                                                   #js{:hidden true})))
              :on-chat-select (fn [selected-chat-id]
                                (swap! !state assoc
                                       :selected-chat-id selected-chat-id
