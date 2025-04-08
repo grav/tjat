@@ -79,58 +79,70 @@
          {:keys [on-chat-select on-chat-remove]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
-            {:keys [hover timer resting]} @!state
-            {:keys [responses]
+            {:keys [hover timer resting show-hidden]} @!state
+            {:keys [responses hidden]
              :as   chat} (->> chats
                               (filter (comp #{selected-chat-id} :id))
                               util/single)]
-        [:div {:style {:display :flex
-                       :padding 10}}
-         [:div (for [{:keys [id text]} (reverse chats)]
-                 ^{:key id} [:div {:on-click #(on-chat-select id)
-                                   :style {:display (when (and search-results
-                                                               (nil? (search-chat-ids id)))
-                                                      :none)}}
-                             [:div {:style          {:position :relative
-                                                     :font-weight      900
-                                                     :background-color (or
-                                                                         (when (= hover id) :lightblue)
-                                                                         (when (= selected-chat-id id) :lightgray))
-                                                     :padding          10
-                                                     :white-space      (when (not= resting id) :nowrap)
-                                                     :width            150
-                                                     :overflow-x       :hidden
-                                                     :overflow-y       :auto
-                                                     :text-overflow    (when (not= resting id) :ellipsis)
-                                                     :max-height       200}
-                                    :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
-                                                                                            (fn []
-                                                                                              (swap! !state
-                                                                                                     assoc :resting id))
-                                                                                            300))
-                                    :on-mouse-leave (fn [_]
-                                                      (when timer
-                                                        (js/clearTimeout timer))
-                                                      (swap! !state dissoc :hover :timer :resting))}
-                              text
-                              [:div {:style {:position :absolute
-                                             :top 0
-                                             :padding 5
-                                             :right 0
-                                             :z-index 1
-                                             :cursor :pointer}
-                                     :on-click (fn [e]
-                                                 (.stopPropagation e)
-                                                 (on-chat-remove id))}
-                               "˟"]]
-                             (when (= selected-chat-id id))])]
-         [:div {:style {:padding 10}}
-          [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
-          [:hr]
-          (when (or (nil? search-results)
-                    (search-response-ids selected-response-id))
-            [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                               (first responses))])]]))))
+        [:div
+         [:div [:label [:input {:type     :checkbox
+                                :value    show-hidden
+                                :on-click (fn [_]
+                                            (swap! !state assoc :show-hidden (not show-hidden)))}]
+                "Show hidden"]]
+         [:div {:style {:display :flex
+                        :padding 10}}
+          [:div (for [{:keys [id text hidden]} (reverse chats)]
+                  ^{:key id} [:div {:on-click #(on-chat-select id)
+                                    :style    {:display (when (or (and search-results
+                                                                       (nil? (search-chat-ids id)))
+                                                                  (and (not show-hidden)
+                                                                       hidden))
+                                                          :none)}}
+                              [:div {:style          {:position         :relative
+                                                      :font-weight      900
+                                                      :background-color (or
+                                                                          (when (= hover id) :lightblue)
+                                                                          (when (= selected-chat-id id) :lightgray))
+                                                      :padding          10
+                                                      :white-space      (when (not= resting id) :nowrap)
+                                                      :width            150
+                                                      :overflow-x       :hidden
+                                                      :overflow-y       :auto
+                                                      :text-overflow    (when (not= resting id) :ellipsis)
+                                                      :max-height       200}
+                                     :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
+                                                                                             (fn []
+                                                                                               (swap! !state
+                                                                                                      assoc :resting id))
+                                                                                             300))
+                                     :on-mouse-leave (fn [_]
+                                                       (when timer
+                                                         (js/clearTimeout timer))
+                                                       (swap! !state dissoc :hover :timer :resting))}
+                               text
+                               [:div {:title    "Hide"
+                                      :style    {:position :absolute
+                                                 :top      0
+                                                 :padding  5
+                                                 :right    0
+                                                 :z-index  1
+                                                 :cursor   :pointer}
+                                      :on-click (fn [e]
+                                                  (.stopPropagation e)
+                                                  (on-chat-remove id))}
+                                "˟"]]
+                              (when (= selected-chat-id id))])]
+          [:div {:style {:display (when (and hidden
+                                             (not show-hidden))
+                                    :none)
+                         :padding 10}}
+           [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
+           [:hr]
+           (when (or (nil? search-results)
+                     (search-response-ids selected-response-id))
+             [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                                (first responses))])]]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
@@ -320,7 +332,10 @@
                                      (swap! !ref-state
                                             merge
                                             (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                                 :subscriptions {:chats {:responses {}}}
+                                                                 :subscriptions {:chats {#_#_:$ {:where
+                                                                                                 {:or [{:hidden false}
+                                                                                                       {:hidden {:$isNull true}}]}}
+                                                                                         :responses {}}}
                                                                  :!state        !state
                                                                  :on-error      instant-db-error-handler})))
                                    (when (and (seq algolia-app-id)
@@ -379,7 +394,7 @@
                                                       :value   instantdb-app-id}]]
                                      [:div
                                       [:div {:style {:display :flex}}
-                                       [:a {:href "https://dashboard.algolia.com/"
+                                       [:a {:href   "https://dashboard.algolia.com/"
                                             :target "_blank"}
                                         "Algolia"]
                                        " App-id: "
@@ -431,10 +446,10 @@
                                                                                                        :chat_id chat-id)})
                                                                   chat-reqs (->> chats
                                                                                  (map (fn [{:keys [id] :as c}]
-                                                                                        {:action "addObject"
+                                                                                        {:action    "addObject"
                                                                                          :indexName a/index-name-chats
-                                                                                         :body (-> (assoc c :objectID id)
-                                                                                                   (dissoc :responses))})))]
+                                                                                         :body      (-> (assoc c :objectID id)
+                                                                                                        (dissoc :responses))})))]
                                                               (-> (.multipleBatch
                                                                     ^js/Object algolia-client
                                                                     (clj->js {:requests (concat chat-reqs response-reqs)}))
