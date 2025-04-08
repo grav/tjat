@@ -76,7 +76,7 @@
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
-         {:keys [on-chat-select on-chat-remove]
+         {:keys [on-chat-select on-chat-toggle-hidden]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
             {:keys [hover timer resting show-hidden]} @!state
@@ -121,17 +121,19 @@
                                                          (js/clearTimeout timer))
                                                        (swap! !state dissoc :hover :timer :resting))}
                                text
-                               [:div {:title    "Hide"
-                                      :style    {:position :absolute
-                                                 :top      0
-                                                 :padding  5
-                                                 :right    0
-                                                 :z-index  1
-                                                 :cursor   :pointer}
-                                      :on-click (fn [e]
-                                                  (.stopPropagation e)
-                                                  (on-chat-remove id))}
-                                "˟"]]
+                               (when (or hidden
+                                         (= id hover))
+                                 [:div {:title    (if hidden "Show" "Hide")
+                                        :style    {:position :absolute
+                                                   :top      0
+                                                   :padding  5
+                                                   :right    0
+                                                   :z-index  1
+                                                   :cursor   :pointer}
+                                        :on-click (fn [e]
+                                                    (.stopPropagation e)
+                                                    (on-chat-toggle-hidden id (not hidden)))}
+                                  (if hidden "+" "˟")])]
                               (when (= selected-chat-id id))])]
           [:div {:style {:display (when (and hidden
                                              (not show-hidden))
@@ -298,20 +300,20 @@
                                  (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu @!state
-            {:on-chat-remove (fn [chat-id]
-                               (.transact db
-                                          (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
-                                                   #js{:hidden true})))
-             :on-chat-select (fn [selected-chat-id]
-                               (swap! !state assoc
-                                      :selected-chat-id selected-chat-id
-                                      ;; TODO - this might be a bit aggressive ...
-                                      :text (->> chats
-                                                 (filter (comp #{selected-chat-id} :id))
-                                                 util/single
-                                                 :text)))
-             :on-response-select (fn [[selected-chat-id id]]
-                                   (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
+            {:on-chat-toggle-hidden (fn [chat-id hidden]
+                                      (.transact db
+                                                 (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
+                                                          #js{:hidden hidden})))
+             :on-chat-select        (fn [selected-chat-id]
+                                      (swap! !state assoc
+                                             :selected-chat-id selected-chat-id
+                                             ;; TODO - this might be a bit aggressive ...
+                                             :text (->> chats
+                                                        (filter (comp #{selected-chat-id} :id))
+                                                        util/single
+                                                        :text)))
+             :on-response-select    (fn [[selected-chat-id id]]
+                                      (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
 #_(defn testit []
     [:div
      [upload/drop-zone]])
