@@ -76,7 +76,7 @@
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
-         {:keys [on-chat-select]
+         {:keys [on-chat-select on-chat-remove]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
             {:keys [hover timer resting]} @!state
@@ -91,7 +91,8 @@
                                    :style {:display (when (and search-results
                                                                (nil? (search-chat-ids id)))
                                                       :none)}}
-                             [:div {:style          {:font-weight      900
+                             [:div {:style          {:position :relative
+                                                     :font-weight      900
                                                      :background-color (or
                                                                          (when (= hover id) :lightblue)
                                                                          (when (= selected-chat-id id) :lightgray))
@@ -111,7 +112,17 @@
                                                       (when timer
                                                         (js/clearTimeout timer))
                                                       (swap! !state dissoc :hover :timer :resting))}
-                              text]
+                              text
+                              [:div {:style {:position :absolute
+                                             :top 0
+                                             :padding 5
+                                             :right 0
+                                             :z-index 1
+                                             :cursor :pointer}
+                                     :on-click (fn [e]
+                                                 (.stopPropagation e)
+                                                 (on-chat-remove id))}
+                               "˟"]]
                              (when (= selected-chat-id id))])]
          [:div {:style {:padding 10}}
           [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
@@ -275,14 +286,16 @@
                                  (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu @!state
-            {:on-chat-select     (fn [selected-chat-id]
-                                   (swap! !state assoc
-                                          :selected-chat-id selected-chat-id
-                                          ;; TODO - this might be a bit aggressive ...
-                                          :text (->> chats
-                                                     (filter (comp #{selected-chat-id} :id))
-                                                     util/single
-                                                     :text)))
+            {:on-chat-remove (fn [chat-id]
+                               (js/alert 'chat-id))
+             :on-chat-select (fn [selected-chat-id]
+                               (swap! !state assoc
+                                      :selected-chat-id selected-chat-id
+                                      ;; TODO - this might be a bit aggressive ...
+                                      :text (->> chats
+                                                 (filter (comp #{selected-chat-id} :id))
+                                                 util/single
+                                                 :text)))
              :on-response-select (fn [[selected-chat-id id]]
                                    (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
 #_(defn testit []
