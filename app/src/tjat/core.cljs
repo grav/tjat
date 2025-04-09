@@ -323,6 +323,26 @@
     (js/console.error e)
     (js/alert (.-message e))))
 
+(defn on-algolia-import-click [{:keys [chats]}]
+  (let [response-reqs (for [{:keys   [responses] :as c
+                             chat-id :id} chats
+                            {:keys [id] :as r} responses]
+                        {:action    "addObject"
+                         :indexName a/index-name-responses
+                         :body      (assoc r :objectID id
+                                             :chat_id chat-id)})
+        chat-reqs (->> chats
+                       (map (fn [{:keys [id] :as c}]
+                              {:action    "addObject"
+                               :indexName a/index-name-chats
+                               :body      (-> (assoc c :objectID id)
+                                              (dissoc :responses))})))]
+    (-> (.multipleBatch
+          ^js/Object algolia-client
+          (clj->js {:requests (concat chat-reqs response-reqs)}))
+        (.then #(js/alert "Done!"))
+        (.catch #(js/alert "Something went wrong!")))))
+
 (defn instantdb-view []
   (let [!ref-state (atom nil)]
     (r/create-class
@@ -437,27 +457,7 @@
 
 
                                                        :value   algolia-api-key}]]
-                                      [:button {:on-click (fn []
-                                                            (let [{:keys [chats]} @!state
-                                                                  response-reqs (for [{:keys   [responses] :as c
-                                                                                       chat-id :id} (:chats @!state)
-                                                                                      {:keys [id] :as r} responses]
-                                                                                  {:action    "addObject"
-                                                                                   :indexName a/index-name-responses
-                                                                                   :body      (assoc r :objectID id
-                                                                                                       :chat_id chat-id)})
-                                                                  chat-reqs (->> chats
-                                                                                 (map (fn [{:keys [id] :as c}]
-                                                                                        {:action    "addObject"
-                                                                                         :indexName a/index-name-chats
-                                                                                         :body      (-> (assoc c :objectID id)
-                                                                                                        (dissoc :responses))})))]
-                                                              (-> (.multipleBatch
-                                                                    ^js/Object algolia-client
-                                                                    (clj->js {:requests (concat chat-reqs response-reqs)}))
-                                                                  (.then #(js/alert "Done!"))
-                                                                  (.catch #(js/alert "Something went wrong!")))))
-
+                                      [:button {:on-click #(on-algolia-import-click @!state)
                                                 :disabled (or (empty? algolia-api-key)
                                                               (empty? algolia-app-id))}
 
