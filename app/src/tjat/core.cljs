@@ -180,7 +180,9 @@
                          (let [model (.-value (.-target e))]
                            (js/localStorage.setItem "tjat-model" model)
                            (swap! !state assoc :model (keyword model))
-                           (swap! !state update :models conj (keyword model))))}
+                           (if (models (keyword model))
+                             (swap! !state update :models disj (keyword model))
+                             (swap! !state update :models (fnil conj #{}) (keyword model)))))}
            (for [p all-models]
              ^{:key (name p)}
              [:option {:id (name p)}
