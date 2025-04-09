@@ -153,11 +153,12 @@
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
-            {:keys [text model api-keys loading-chats chats selected-chat-id]
-             :or   {model    (or
-                               (some-> (js/localStorage.getItem "tjat-model") keyword)
-                               (first all-models))
+            {:keys [text models api-keys loading-chats chats selected-chat-id]
+             :or   {models    (or
+                                (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{}))
+                                (first all-models))
                     api-keys api-keys-persisted}} @!state
+            model (first models)
             {:keys [provider]} (allem.core/make-config {:model model})
             loading (not (zero? (->> (for [[_ v] loading-chats]
                                        v)
@@ -173,11 +174,13 @@
          [:div
           "Model: "
           [:select
-           {:value     (name model)
+           {:multiple true
+            :value     models
             :on-change (fn [e]
                          (let [model (.-value (.-target e))]
                            (js/localStorage.setItem "tjat-model" model)
-                           (swap! !state assoc :model (keyword model))))}
+                           (swap! !state assoc :model (keyword model))
+                           (swap! !state update :models conj (keyword model))))}
            (for [p all-models]
              ^{:key (name p)}
              [:option {:id (name p)}
