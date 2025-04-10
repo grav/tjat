@@ -12,7 +12,8 @@
             [tjat.ui :as ui]
             [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
-            ["algoliasearch" :as algolia]))
+            ["algoliasearch" :as algolia]
+            [clojure.edn]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -156,9 +157,10 @@
                             sort)
             {:keys [text models api-keys loading-chats chats selected-chat-id]
              :or   {models    (or
-                                (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{}))
+                                (some->> (js/localStorage.getItem "tjat-models") clojure.edn/read-string)
+                                (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{})) ;; legacy
                                 (first all-models))
-                    api-keys api-keys-persisted}} @!state
+                    api-keys  api-keys-persisted}} @!state
             loading (not (zero? (->> (for [[_ v] loading-chats]
                                        v)
                                      (apply +))))
@@ -166,29 +168,31 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         [:div
-          #_[:pre 'db? (str " " (some? db))]
-          [:pre (util/spprint (dissoc @!state :chats))]]
+         #_[:div
+            [:pre 'db? (str " " (some? db))]
+            [:pre (util/spprint (dissoc @!state :chats))]]
          [:div
           [:details #_{:open true}
            [:summary "API keys"]
            [:div
             [:table
-             (cons [:tr
-                    [:th "Provider"]
-                    [:th "Key"]]
-                   (for [[provider _] (:providers allem.core/config)]
-                     [:tr
-                      [:td (name provider)]
-                      [:td [ui/edit-field {:on-save
-                                           (fn [k]
-                                             (let [api-keys (if (seq k)
-                                                              (merge api-keys
-                                                                     {provider k})
-                                                              (dissoc api-keys provider))]
-                                               (swap! !state assoc :api-keys api-keys)
-                                               (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                                           :value (get api-keys provider)}]]]))]]]]
+             [:thead [:tr
+                      [:th "Provider"]
+                      [:th "Key"]]]
+             [:tbody
+              (for [[provider _] (:providers allem.core/config)]
+                ^{:key (name provider)}
+                [:tr
+                 [:td (name provider)]
+                 [:td [ui/edit-field {:on-save
+                                      (fn [k]
+                                        (let [api-keys (if (seq k)
+                                                         (merge api-keys
+                                                                {provider k})
+                                                         (dissoc api-keys provider))]
+                                          (swap! !state assoc :api-keys api-keys)
+                                          (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
+                                      :value (get api-keys provider)}]]])]]]]]
 
 
 
@@ -199,11 +203,11 @@
             :value     models
             :on-change (fn [e]
                          (let [model (.-value (.-target e))]
-                           (js/localStorage.setItem "tjat-model" model)
-                           (swap! !state assoc :model (keyword model))
-                           (if (models (keyword model))
-                             (swap! !state update :models disj (keyword model))
-                             (swap! !state update :models (fnil conj #{}) (keyword model)))))}
+                           (when (seq model)
+                             (let [{:keys [models]} (if (models (keyword model))
+                                                      (swap! !state update :models disj (keyword model))
+                                                      (swap! !state update :models (fnil conj #{}) (keyword model)))]
+                               (js/localStorage.setItem "tjat-models" (pr-str models))))))}
            (for [p all-models]
              ^{:key (name p)}
              [:option {:id (name p)}
@@ -218,7 +222,8 @@
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
            {:style {:height 50}}
-           [:button {:disabled (empty? text)
+           [:button {:disabled (or (empty? text)
+                                   (empty? models))
                      :on-click #(do
 
                                   (let [chat-id (if (not= text (:text selected-chat))
