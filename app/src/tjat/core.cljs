@@ -88,7 +88,7 @@
                               util/single)]
         [:div
          [:div [:label [:input {:type     :checkbox
-                                :value    show-hidden
+                                :value    (boolean show-hidden)
                                 :on-click (fn [_]
                                             (swap! !state assoc :show-hidden (not show-hidden)))}]
                 "Show hidden"]]
