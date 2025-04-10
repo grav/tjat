@@ -300,7 +300,7 @@
                                                                                                                              (assoc response
                                                                                                                                :id response-id))) [])
                                                                              (assoc-in [:selections chat-id] response-id)
-                                                                             (assoc :loading false))))
+                                                                             (update-in [:loading-chats chat-id] dec))))
                                                          100)))))
                                           (.catch (fn [e]
                                                     (js/alert
@@ -310,7 +310,7 @@
                                                              " from API")
                                                         :else
                                                         (str e)))
-                                                    (swap! !state assoc :loading false)))))))}
+                                                    (swap! !state update-in [:loading-chats chat-id] dec)))))))}
 
 
             "submit"]
