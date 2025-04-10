@@ -170,9 +170,31 @@
          [:div
           #_[:pre 'db? (str " " (some? db))]
           [:pre (util/spprint (dissoc @!state :chats))]]
-         [:h1 "Tjat!"]
          [:div
-          "Model: "
+          [:details #_{:open true}
+           [:summary "API keys"]
+           [:div
+            [:table
+             (cons [:tr
+                    [:th "Provider"]
+                    [:th "Key"]]
+                   (for [[k v] (:providers allem.core/config)]
+                     [:tr
+                      [:td (name k)]
+                      [:td [ui/edit-field {:on-save
+                                           (fn [k]
+                                             (let [api-keys (if (seq k)
+                                                              (merge api-keys
+                                                                     {provider k})
+                                                              (dissoc api-keys provider))]
+                                               (swap! !state assoc :api-keys api-keys)
+                                               (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
+                                           :value (get api-keys provider)}]]]))]]]]
+
+
+
+         [:div
+          [:div "Select models: "]
           [:select
            {:multiple true
             :value     models
@@ -187,21 +209,6 @@
              ^{:key (name p)}
              [:option {:id (name p)}
               (name p)])]
-          (when provider
-            [:div [:p "Provider: "
-                   [:b (name provider)]]
-             [:div {:style {:display :flex}}
-              [:div "Api key: "]
-              [ui/edit-field {:on-save
-                              (fn [k]
-                                (let [api-keys (if (seq k)
-                                                 (merge api-keys
-                                                        {provider k})
-                                                 (dissoc api-keys provider))]
-                                  (swap! !state assoc :api-keys api-keys)
-                                  (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                              :value (get api-keys provider)}]]])
-
           [:p
            [:textarea
             {:style {:width "100%"}
@@ -394,8 +401,9 @@
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
+                                    [:h1 "Tjat!"]
                                     [:details {:open false}
-                                     [:summary "Settings"]
+                                     [:summary "Sync settings"]
                                      [:div {:style {:display :flex}}
                                       [:a {:href   "https://www.instantdb.com/dash"
                                            :target "_blank"}
