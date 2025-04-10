@@ -1,6 +1,7 @@
 (ns tjat.core
   (:require ["react-dom/client" :as react-dom]
             [allem.util :as util]
+            [allem.platform :as platform]
             [reagent.core :as r]
             [goog.dom :as gdom]
             [allem.core]
@@ -192,7 +193,7 @@
 
 
          [:div
-          [:div "Select models: "]
+          [:div (platform/format' "Select model: (%d selected)" (count models))]
           [:select
            {:multiple true
             :value     models
@@ -244,11 +245,12 @@
 
                                                   selected-chat-id)
                                         start-time (js/Date.)]
-                                    (swap! !state (fn [s]
-                                                    (-> s
-                                                        (assoc :selected-chat-id chat-id)
-                                                        (update-in [:loading-chats chat-id] inc))))
+
                                     (doseq [model models]
+                                      (swap! !state (fn [s]
+                                                      (-> s
+                                                          (assoc :selected-chat-id chat-id)
+                                                          (update-in [:loading-chats chat-id] inc))))
                                       (-> (do-request! {:message  text
                                                         :model    model
                                                         :api-keys api-keys})
