@@ -168,9 +168,9 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         #_[:div
-            [:pre 'db? (str " " (some? db))]
-            [:pre (util/spprint (dissoc @!state :chats))]]
+         [:div
+          [:pre 'db? (str " " (some? db))]
+          [:pre (util/spprint (dissoc @!state :chats))]]
          [:div
           [:details #_{:open true}
            [:summary "API keys"]
@@ -202,12 +202,13 @@
            {:multiple true
             :value     models
             :on-change (fn [e]
-                         (let [model (.-value (.-target e))]
-                           (when (seq model)
-                             (let [{:keys [models]} (if (models (keyword model))
-                                                      (swap! !state update :models disj (keyword model))
-                                                      (swap! !state update :models (fnil conj #{}) (keyword model)))]
-                               (js/localStorage.setItem "tjat-models" (pr-str models))))))}
+                         (let [selected-models (->> (.-selectedOptions (.-target e))
+                                                    (map #(.-value %))
+                                                    (map keyword)
+                                                    set)]
+                           (swap! !state assoc :models selected-models)
+                           (js/localStorage.setItem "tjat-models" (pr-str selected-models))))}
+
            (for [p all-models]
              ^{:key (name p)}
              [:option {:id (name p)}
@@ -338,9 +339,6 @@
                                                         :text)))
              :on-response-select    (fn [[selected-chat-id id]]
                                       (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
-#_(defn testit []
-    [:div
-     [upload/drop-zone]])
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
