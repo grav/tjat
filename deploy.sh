@@ -4,11 +4,21 @@ set -euo pipefail
 set -x
 dir="${1:-tjat}"
 
+
 pushd app
 
 npm i
 
 npx shadow-cljs release :app
+
+magick tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico 
+
+aws s3api put-object \
+    --endpoint-url "$S3_ENDPOINT_URL" \
+    --bucket "$S3_BUCKET" \
+    --key "${dir}/favicon.ico" --body public/favicon.ico \
+    --acl public-read \
+    --checksum-algorithm CRC32
 
 aws s3api put-object \
   --endpoint-url "$S3_ENDPOINT_URL" \
