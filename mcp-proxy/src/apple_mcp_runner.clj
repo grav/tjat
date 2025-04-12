@@ -12,7 +12,10 @@
   []
   ;; install via
   ;; npx -y @smithery/cli@latest install @Dhravya/apple-mcp
-  (let [pb (ProcessBuilder. ["/Users/grav/.bun/bin/bunx" "apple-mcp@latest"])
+  (let [pb (ProcessBuilder.
+             [(format "%s/.bun/bin/bunx"
+                      (System/getProperty "user.home"))
+              "apple-mcp@latest"])
         process (.start pb)]
     process))
 
