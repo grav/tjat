@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]))
 
 ;; example request:
-;; {"jsonrpc": "2.0","id": 1,"method":"tools/list","params": {}}
+  ;; {"jsonrpc": "2.0","id": 1,"method":"tools/list","params": {}}
 
 (def msg
   "{\"jsonrpc\": \"2.0\",\"id\": 1,\"method\":\"tools/list\",\"params\": {}}")
@@ -13,7 +13,10 @@
   ;; install via
   ;; npx -y @smithery/cli@latest install @Dhravya/apple-mcp
   (let [pb (ProcessBuilder.
-             [(format "%s/.bun/bin/bunx"
+             #_[(format "/Users/mikkelriiskjaergravgaard/repo/tjat/mcp-proxy/wrap.sh")]
+
+             #_["tee" "file.txt"]
+             [(format "%s/.nvm/versions/node/v22.12.0/bin/npx"
                       (System/getProperty "user.home"))
               "apple-mcp@latest"])
         process (.start pb)]
@@ -25,6 +28,10 @@
   (with-open [writer (io/writer (.getOutputStream process))]
     (.write writer (str message "\n"))
     (.flush writer)))
+
+(defn send-message' [w msg]
+  (.write w (str msg "\n"))
+  (.flush w))
 
 (defn read-output
   "Reads and prints the output from the process."
@@ -54,6 +61,21 @@
           (do
             (send-message process input)
             (recur)))))))
+
+(comment
+  (def p (start-process)))
+
+(comment
+  (future (read-output p)))
+
+(comment
+  (def w (io/writer (.getOutputStream p))))
+
+(comment
+  (send-message' w msg))
+
+(comment
+  (.close w))
 
 (comment
   (main))
