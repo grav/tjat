@@ -19,7 +19,8 @@
                     :o1-mini
                     {:model-name "o1-mini"}
                     :o3-mini nil
-                    :gpt-4.5-preview nil}}
+                    :gpt-4.5-preview nil
+                    :gpt-4.1 nil}}
   :gemini {:models {:gemini-1.5-flash
                     {:model-name "gemini-1.5-flash"}
                     :gemini-2.0-flash
@@ -43,6 +44,7 @@
           :claude-3.5-sonnet [:anthropic]
           :claude-3.7-sonnet [:anthropic]
           :gpt-4o [:openai]
+          :gpt-4.1 [:openai]
           :o1-mini [:openai]
           :o3-mini [:openai]
           :gpt-4.5-preview [:openai]
