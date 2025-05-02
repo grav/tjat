@@ -284,9 +284,15 @@
                                                                (.then js/console.log)))
 
                                                          (swap! !state (fn [s]
-                                                                         (-> s
-                                                                             (assoc-in [:selections chat-id] response-id)
-                                                                             (update-in [:loading-chats chat-id] dec)))))
+                                                                         (cond-> s
+                                                                                 ;; only select new response
+                                                                                 ;; if no existing response is selected
+                                                                                 (and (not (get (:selections @!state)
+                                                                                                selected-chat-id)))
+                                                                                 (assoc-in [:selections chat-id] response-id)
+
+                                                                                 true
+                                                                                 (update-in [:loading-chats chat-id] dec)))))
                                                        ;; local-only
                                                        (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
                                                                            (filter (fn [[_ id]]
@@ -399,7 +405,7 @@
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys                      [instantdb-app-id]
+                                 (let [{:keys                                                              [instantdb-app-id]
                                         {algolia-app-id  :app-id
                                          algolia-api-key :api-key} :algolia} @!state
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
