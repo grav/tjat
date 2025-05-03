@@ -312,13 +312,18 @@
                                                                            util/single
                                                                            first)]
                                                          (swap! !state (fn [s]
-                                                                         (-> s
-                                                                             (update-in [:chats chat-idx :responses] (fn [vs]
-                                                                                                                       (conj (or vs [])
-                                                                                                                             (assoc response
-                                                                                                                               :id response-id))) [])
-                                                                             (assoc-in [:selections chat-id] response-id)
-                                                                             (update-in [:loading-chats chat-id] dec))))
+                                                                         (cond-> s
+                                                                                 true
+                                                                                 (update-in [:chats chat-idx :responses] (fn [vs]
+                                                                                                                           (conj (or vs [])
+                                                                                                                                 (assoc response
+                                                                                                                                   :id response-id))) [])
+                                                                                 ;; only select new response
+                                                                                 ;; if no existing response is selected
+                                                                                 (and (not (get (:selections @!state)
+                                                                                                selected-chat-id)))
+                                                                                 (assoc-in [:selections chat-id] response-id)
+                                                                                 true (update-in [:loading-chats chat-id] dec))))
                                                          100)))))
                                           (.catch (fn [e]
                                                     (js/alert
@@ -417,7 +422,7 @@
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys                                                              [instantdb-app-id]
+                                 (let [{:keys                      [instantdb-app-id]
                                         {algolia-app-id  :app-id
                                          algolia-api-key :api-key} :algolia} @!state
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
