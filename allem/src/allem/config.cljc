@@ -47,8 +47,6 @@
                         model api-key))
             :level1 {:contents nil}
             :level2 {:parts nil}
-            :body-fn (fn [{:keys [message]}]
-                       {:contents [{:parts [{:text message}]}]})
             :reply-fn #(-> % :candidates util/single :content :parts util/single :text)
             :text-fn #(hash-map :text %)
             :image-fn (fn [{:keys [input-stream mime-type]}]
