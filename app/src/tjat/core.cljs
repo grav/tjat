@@ -41,7 +41,17 @@
       (.then util/spprint)
       (.then println)))
 
+(def think-start
+  (clj->js
+    {:type "lang"
+     :regex #"<think>"
+     :replace "<small><details><summary><i>Think \uD83D\uDCAD</i></summary><i>"}))
 
+(def think-end
+  (clj->js
+    {:type "lang"
+     :regex #"</think>"
+     :replace "</i><hr></details></small>"}))
 
 (defn response-view [{:keys [request-time id text] :as x}]
   (when id
@@ -54,7 +64,9 @@
             {:dangerouslySetInnerHTML
              {:__html (.makeHtml
                         ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                        (doto (showdown/Converter.)
+                        (doto (showdown/Converter.
+                                (clj->js {:extensions [think-start
+                                                       think-end]}))
                           (.setFlavor "github")) text)}}]]]))
 
 (defn response-tabs [{:keys     [selected-response-id]
