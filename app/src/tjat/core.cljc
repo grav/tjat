@@ -180,11 +180,12 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         #_[:div
-            [:pre 'db? (str " " (some? db))]
-            [:pre (util/spprint (dissoc @!state :chats))]]
+         #?(:dev-config
+            [:div
+             [:pre 'db? (str " " (some? db))]
+             [:pre (util/spprint (dissoc @!state :chats))]])
          [:div
-          [:details #_{:open true}
+          [:details #?(:dev-config {:open true})
            [:summary "API keys"]
            [:div
             [:table
@@ -429,7 +430,7 @@
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
                                     [:h1 "tjat!"]
-                                    [:details {:open false}
+                                    [:details #?(:dev-config {:open true})
                                      [:summary "Sync settings"]
                                      [:div {:style {:display :flex}}
                                       [:a {:href   "https://www.instantdb.com/dash"
