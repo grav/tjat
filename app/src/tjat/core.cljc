@@ -10,6 +10,7 @@
             ["showdown" :as showdown]
             [tjat.db :as db]
             [tjat.ui :as ui]
+            [tjat.ui-components :as ui-components]
             [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
             ["algoliasearch" :as algolia]
@@ -19,7 +20,8 @@
 
 (defonce !state (r/atom nil))
 
-(defn do-request! [{:keys [message model api-keys]}]
+;; API request handlers
+(defn make-api-request! [{:keys [message model api-keys]}]
   (let [config (allem.core/make-config
                  {:model    model
                   :api-keys api-keys})
@@ -35,130 +37,237 @@
         (.then #(js->clj % :keywordize-keys true))
         (.then reply-fn))))
 
+(defn do-request! [params]
+  (make-api-request! params))
+
 (comment
   (-> (do-request! {:message "yolo"
                     :model   :gpt-4o})
       (.then util/spprint)
       (.then println)))
 
-(def think-start
+;; Markdown extensions for think blocks
+(def think-start-extension
   (clj->js
     {:type "lang"
      :regex #"<think>"
      :replace "<small><details><summary><i>Think \uD83D\uDCAD</i></summary><i>"}))
 
-(def think-end
+(def think-end-extension
   (clj->js
     {:type "lang"
      :regex #"</think>"
      :replace "</i><hr></details></small>"}))
 
-(defn response-view [{:keys [request-time id text] :as x}]
+;; Event handlers
+(defn handle-model-selection [e !state]
+  (let [selected-models (->> (.-selectedOptions (.-target e))
+                             (map #(.-value %))
+                             (map keyword)
+                             set)]
+    (swap! !state assoc :models selected-models)
+    (js/localStorage.setItem "tjat-models" (pr-str selected-models))))
+
+(defn handle-text-change [e !state]
+  (swap! !state assoc :text (.-value (.-target e))))
+
+(defn create-new-chat [text db algolia-client !state]
+  (if db
+    (let [chat-id (instantdb/id)
+          tx (.-tx db)
+          new-chat (aget (.-chats ^js/Object tx) chat-id)]
+      (.transact db (.update new-chat #js{:text text}))
+      (when algolia-client
+        (-> (.saveObject ^js/Object algolia-client
+                         (clj->js
+                           {:indexName a/index-name-chats
+                            :body      {:objectID chat-id
+                                        :text     text}}))
+            (.then js/console.log)))
+      chat-id)
+    ;; local-only
+    (let [id (str (random-uuid))]
+      (swap! !state update :chats (fn [vs]
+                                    (conj (or vs [])
+                                          {:id id :text text})))
+      id)))
+
+(defn save-response-to-db [db algolia-client response response-id chat-id !state]
+  (if db
+    (do
+      (.transact db (let [new-response (aget (.-responses ^js/Object (.-tx db)) response-id)]
+                      (-> new-response
+                          (.update (clj->js response))
+                          (.link #js {:chats chat-id}))))
+      (when algolia-client
+        (-> (.saveObject ^js/Object algolia-client
+                         (clj->js {:indexName a/index-name-responses
+                                   :body      {:objectID response-id
+                                               :chat_id  chat-id
+                                               :text     (:text response)}}))
+            (.then js/console.log)))
+      (swap! !state update-in [:loading-chats chat-id] dec))
+    ;; local-only
+    (let [chat-idx (->> (map vector (range) (map :id (:chats @!state)))
+                        (filter (fn [[_ id]] (= id chat-id)))
+                        util/single
+                        first)]
+      (swap! !state (fn [s]
+                      (cond-> s
+                              true (update-in [:chats chat-idx :responses] 
+                                              (fn [vs] (conj (or vs [])
+                                                             (assoc response :id response-id))))
+                              true (update-in [:loading-chats chat-id] dec)))))))
+
+(defn handle-api-error [e model !state chat-id]
+  (js/alert
+    (cond
+      (some-> (ex-data e) :status)
+      (str "Error: Got status " (:status (ex-data e))
+           " from API (" (name model) ")")
+      :else
+      (str e)))
+  (swap! !state update-in [:loading-chats chat-id] dec))
+
+(defn handle-submit [text models api-keys db algolia-client selected-chat selected-chat-id !state]
+  (let [chat-id (if (not= text (:text selected-chat))
+                  (create-new-chat text db algolia-client !state)
+                  selected-chat-id)
+        start-time (js/Date.)]
+    (doseq [model models]
+      (swap! !state (fn [s]
+                      (-> s
+                          (assoc :selected-chat-id chat-id)
+                          (update-in [:loading-chats chat-id] inc))))
+      (-> (do-request! {:message  text
+                        :model    model
+                        :api-keys api-keys})
+          (.then (fn [v]
+                   (let [response-id (or (when db (instantdb/id))
+                                         (str (random-uuid)))
+                         end-time (js/Date.)
+                         response {:text          v
+                                   :model         (name model)
+                                   :request-time  start-time
+                                   :response-time end-time}]
+                     (save-response-to-db db algolia-client response response-id chat-id !state))))
+          (.catch (fn [e] (handle-api-error e model !state chat-id)))))))
+
+(defn handle-search-results [res !state]
+  (swap! !state assoc :search-results res))
+
+(defn handle-chat-toggle-hidden [chat-id hidden db]
+  (.transact db
+             (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
+                      #js{:hidden hidden})))
+
+(defn handle-chat-select [selected-chat-id chats !state]
+  (swap! !state assoc
+         :selected-chat-id selected-chat-id
+         :text (->> chats
+                    (filter (comp #{selected-chat-id} :id))
+                    util/single
+                    :text)))
+
+(defn handle-response-select [selected-chat-id id !state]
+  (swap! !state assoc-in [:selections selected-chat-id] id))
+
+;; UI Components
+(defn api-keys-config [api-keys !state]
+  [:div "API Keys Configuration Extracted"])
+
+(defn model-selector [models all-models !state]
+  [:div
+   [:div (platform/format' "Select model: (%d selected)" (count models))]
+   [:select
+    {:multiple true
+     :value     models
+     :on-change #(handle-model-selection % !state)}
+    (for [p all-models]
+      ^{:key (name p)}
+      [:option {:id (name p)}
+       (name p)])]])
+
+(defn text-input [text !state]
+  [:p
+   [:textarea
+    {:style {:width "100%"}
+     :rows  10
+     :value text
+     :on-change #(handle-text-change % !state)}]])
+
+(defn submit-controls [text models api-keys db algolia-client selected-chat selected-chat-id loading !state]
+  [:p
+   {:style {:height 50}}
+   [:button {:disabled (or (empty? text)
+                           (empty? models))
+             :on-click #(handle-submit text models api-keys db algolia-client 
+                                       selected-chat selected-chat-id !state)}
+    "submit"]
+   (when loading
+     [ui/spinner])])
+
+(defn search-section [algolia-client !state]
+  (when algolia-client
+    [:div {:style {:display :flex}}
+     "Search: "
+     [ui/search
+      {:algolia-client algolia-client
+       :on-search      #(handle-search-results % !state)}]]))
+
+(defn chat-interface [state chats db !state]
+  [ui/error-boundary
+   [ui-components/chat-menu state
+    {:on-chat-toggle-hidden #(handle-chat-toggle-hidden %1 %2 db)
+     :on-chat-select        #(handle-chat-select % chats !state)
+     :on-response-select    (fn [[selected-chat-id id]]
+                              (handle-response-select selected-chat-id id !state))}]])
+
+(defn dev-debug-info [db state]
+  #?(:dev-config
+     [:div
+      [:pre 'db? (str " " (some? db))]
+      [:pre (util/spprint (dissoc state :chats))]]))
+
+;; Response components
+(defn format-timestamp [timestamp]
+  (some-> timestamp
+          js/Date.parse
+          (js/Date.)
+          str))
+
+(defn create-markdown-converter []
+  (doto (showdown/Converter.
+          (clj->js {:extensions [think-start-extension
+                                 think-end-extension]}))
+    (.setFlavor "github")))
+
+(defn response-timestamp [{:keys [request-time]}]
+  [:div [:i (format-timestamp request-time)]])
+
+(defn response-content [{:keys [text]}]
+  [:div [:p
+         {:dangerouslySetInnerHTML
+          {:__html (.makeHtml (create-markdown-converter) text)}}]])
+
+(defn response-view [{:keys [id] :as response}]
   (when id
     [:div
-     [:div [:i (some-> request-time
-                       js/Date.parse
-                       (js/Date.)
-                       str)]]
-     [:div [:p
-            {:dangerouslySetInnerHTML
-             {:__html (.makeHtml
-                        ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                        (doto (showdown/Converter.
-                                (clj->js {:extensions [think-start
-                                                       think-end]}))
-                          (.setFlavor "github")) text)}}]]]))
+     [response-timestamp response]
+     [response-content response]]))
 
-(defn response-tabs [{:keys     [selected-response-id]
-                      chat-id   :id
-                      responses :responses}
-                     {:keys [on-response-select]}]
-  [:div {:style {:display :flex}}
-   (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
-     ^{:key id} [:div [:div
-                       {:style    {:padding 10}
-                        :on-click #(on-response-select [chat-id id])}
-                       [:div {:style {:background-color (when (or (= selected-response-id id)
-                                                                  (and (nil? selected-response-id)
-                                                                       (zero? i))) :lightgray)}}
-                        (name model)]]])])
+(defn response-tab-item [{:keys [model id]} 
+                         {:keys [chat-id selected-response-id index on-response-select]}]
+  ^{:key id} 
+  [:div 
+   [:div
+    {:style    {:padding 10}
+     :on-click #(on-response-select [chat-id id])}
+    [:div {:style {:background-color (when (or (= selected-response-id id)
+                                               (and (nil? selected-response-id)
+                                                    (zero? index))) :lightgray)}}
+     (name model)]]])
 
-
-(defn chat-menu []
-  (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections]
-          {search-response-ids :responses
-           search-chat-ids     :chats
-           :as search-results} :search-results}
-         {:keys [on-chat-select on-chat-toggle-hidden]
-          :as   handlers}]
-      (let [{selected-response-id selected-chat-id} selections
-            {:keys [hover timer resting show-hidden]} @!state
-            {:keys [responses hidden]
-             :as   chat} (->> chats
-                              (filter (comp #{selected-chat-id} :id))
-                              util/single)]
-        [:div
-         [:div [:label [:input {:type     :checkbox
-                                :value    (boolean show-hidden)
-                                :on-click (fn [_]
-                                            (swap! !state assoc :show-hidden (not show-hidden)))}]
-                "Show hidden"]]
-         [:div {:style {:display :flex
-                        :padding 10}}
-          [:div (for [{:keys [id text hidden]} (reverse chats)]
-                  ^{:key id} [:div {:on-click #(on-chat-select id)
-                                    :style    {:display (when (or (and search-results
-                                                                       (nil? (search-chat-ids id)))
-                                                                  (and (not show-hidden)
-                                                                       hidden))
-                                                          :none)}}
-                              [:div {:style          {:position         :relative
-                                                      :font-weight      900
-                                                      :background-color (or
-                                                                          (when (= hover id) :lightblue)
-                                                                          (when (= selected-chat-id id) :lightgray))
-                                                      :padding          10
-                                                      :white-space      (when (not= resting id) :nowrap)
-                                                      :width            150
-                                                      :overflow-x       :hidden
-                                                      :overflow-y       :auto
-                                                      :text-overflow    (when (not= resting id) :ellipsis)
-                                                      :max-height       200}
-                                     :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
-                                                                                             (fn []
-                                                                                               (swap! !state
-                                                                                                      assoc :resting id))
-                                                                                             300))
-                                     :on-mouse-leave (fn [_]
-                                                       (when timer
-                                                         (js/clearTimeout timer))
-                                                       (swap! !state dissoc :hover :timer :resting))}
-                               text
-                               (when (or hidden
-                                         (= id hover))
-                                 [:div {:title    (if hidden "Show" "Hide")
-                                        :style    {:position :absolute
-                                                   :top      0
-                                                   :padding  5
-                                                   :right    0
-                                                   :z-index  1
-                                                   :cursor   :pointer}
-                                        :on-click (fn [e]
-                                                    (.stopPropagation e)
-                                                    (on-chat-toggle-hidden id (not hidden)))}
-                                  (if hidden "+" "˟")])]
-                              (when (= selected-chat-id id))])]
-          [:div {:style {:display (when (and hidden
-                                             (not show-hidden))
-                                    :none)
-                         :padding 10}}
-           [response-tabs (assoc chat :selected-response-id selected-response-id) handlers]
-           [:hr]
-           (when (or (nil? search-results)
-                     (search-response-ids selected-response-id))
-             [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                                (first responses))])]]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
@@ -180,176 +289,23 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         #?(:dev-config
-            [:div
-             [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats))]])
+         [dev-debug-info db @!state]
          [:div
-          [:details #?(:dev-config {:open true})
-           [:summary "API keys"]
-           [:div
-            [:table
-             [:thead [:tr
-                      [:th "Provider"]
-                      [:th "Key"]]]
-             [:tbody
-              (for [[provider _] (:providers allem.core/config)]
-                ^{:key (name provider)}
-                [:tr
-                 [:td (name provider)]
-                 [:td [ui/edit-field {:on-save
-                                      (fn [k]
-                                        (let [api-keys (if (seq k)
-                                                         (merge api-keys
-                                                                {provider k})
-                                                         (dissoc api-keys provider))]
-                                          (swap! !state assoc :api-keys api-keys)
-                                          (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                                      :value (get api-keys provider)}]]])]]]]]
+          [api-keys-config api-keys !state]]
 
 
 
          [:div
-          [:div (platform/format' "Select model: (%d selected)" (count models))]
-          [:select
-           {:multiple true
-            :value     models
-            :on-change (fn [e]
-                         (let [selected-models (->> (.-selectedOptions (.-target e))
-                                                    (map #(.-value %))
-                                                    (map keyword)
-                                                    set)]
-                           (swap! !state assoc :models selected-models)
-                           (js/localStorage.setItem "tjat-models" (pr-str selected-models))))}
-
-           (for [p all-models]
-             ^{:key (name p)}
-             [:option {:id (name p)}
-              (name p)])]
-          [:p
-           [:textarea
-            {:style {:width "100%"}
-             :rows  10
-             :value text
-             :on-change
-             (fn [e]
-               (swap! !state assoc :text (.-value (.-target e))))}]]
-          [:p
-           {:style {:height 50}}
-           [:button {:disabled (or (empty? text)
-                                   (empty? models))
-                     :on-click #(do
-
-                                  (let [chat-id (if (not= text (:text selected-chat))
-                                                  (if db
-                                                    (let [chat-id (instantdb/id)
-                                                          tx (.-tx db)
-                                                          new-chat (aget (.-chats ^js/Object tx) chat-id)]
-                                                      (.transact db
-                                                                 (.update new-chat #js{:text text}))
-                                                      (when algolia-client
-                                                        (-> (.saveObject ^js/Object algolia-client
-                                                                         (clj->js
-                                                                           {:indexName a/index-name-chats
-                                                                            :body      {:objectID chat-id
-                                                                                        :text     text}}))
-                                                            (.then js/console.log)))
-                                                      chat-id)
-                                                    ;; local-only
-                                                    (let [id (str (random-uuid))]
-                                                      (swap! !state update :chats (fn [vs]
-                                                                                    (conj (or vs [])
-                                                                                          {:id id :text text})))
-                                                      id))
-
-                                                  selected-chat-id)
-                                        start-time (js/Date.)]
-
-                                    (doseq [model models]
-                                      (swap! !state (fn [s]
-                                                      (-> s
-                                                          (assoc :selected-chat-id chat-id)
-                                                          (update-in [:loading-chats chat-id] inc))))
-                                      (-> (do-request! {:message  text
-                                                        :model    model
-                                                        :api-keys api-keys})
-                                          (.then (fn [v]
-                                                   (let [response-id (or (when db
-                                                                           (instantdb/id))
-                                                                         (str (random-uuid)))
-                                                         end-time (js/Date.)
-                                                         response {:text          v
-                                                                   :model         (name model)
-                                                                   :request-time  start-time
-                                                                   :response-time end-time}]
-                                                     (if db
-                                                       (do
-                                                         (.transact db (let [new-response (aget (.-responses ^js/Object (.-tx db)) response-id)]
-                                                                         (-> new-response
-                                                                             (.update (clj->js response))
-                                                                             (.link #js {:chats chat-id}))))
-                                                         (when algolia-client
-                                                           (-> (.saveObject ^js/Object algolia-client
-                                                                            (clj->js {:indexName a/index-name-responses
-                                                                                      :body      {:objectID response-id
-                                                                                                  :chat_id  chat-id
-                                                                                                  :text     v}}))
-                                                               (.then js/console.log)))
-
-                                                         (swap! !state update-in [:loading-chats chat-id] dec))
-
-                                                       ;; local-only
-                                                       (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
-                                                                           (filter (fn [[_ id]]
-                                                                                     (= id chat-id)))
-                                                                           util/single
-                                                                           first)]
-                                                         (swap! !state (fn [s]
-                                                                         (cond-> s
-                                                                                 true
-                                                                                 (update-in [:chats chat-idx :responses] (fn [vs]
-                                                                                                                           (conj (or vs [])
-                                                                                                                                 (assoc response
-                                                                                                                                   :id response-id))) [])
-                                                                                 true (update-in [:loading-chats chat-id] dec))))
-                                                         100)))))
-                                          (.catch (fn [e]
-                                                    (js/alert
-                                                      (cond
-                                                        (some-> (ex-data e) :status)
-                                                        (str "Error: Got status " (:status (ex-data e))
-                                                             " from API (" (name model) ")")
-                                                        :else
-                                                        (str e)))
-                                                    (swap! !state update-in [:loading-chats chat-id] dec)))))))}
-
-
-            "submit"]
-           (when loading
-             [ui/spinner])]
+          [model-selector models all-models !state]
+          [text-input text !state]
+          [submit-controls text models api-keys db algolia-client selected-chat selected-chat-id loading !state]
           (when algolia-client
             [:div {:style {:display :flex}}
              "Search: "
              [ui/search
               {:algolia-client algolia-client
-               :on-search      (fn [res]
-                                 (swap! !state assoc :search-results res))}]])
-          [ui/error-boundary
-           [chat-menu @!state
-            {:on-chat-toggle-hidden (fn [chat-id hidden]
-                                      (.transact db
-                                                 (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
-                                                          #js{:hidden hidden})))
-             :on-chat-select        (fn [selected-chat-id]
-                                      (swap! !state assoc
-                                             :selected-chat-id selected-chat-id
-                                             ;; TODO - this might be a bit aggressive ...
-                                             :text (->> chats
-                                                        (filter (comp #{selected-chat-id} :id))
-                                                        util/single
-                                                        :text)))
-             :on-response-select    (fn [[selected-chat-id id]]
-                                      (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
+               :on-search      #(handle-search-results % !state)}]])
+          [chat-interface @!state chats db !state]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]

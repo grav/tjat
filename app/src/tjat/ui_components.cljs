@@ -3,7 +3,7 @@
             [react-color :as react-color]
             [clojure.string :as s]
             [tjat.util :as util]
-            [tjat.markdown :as md]))
+            [tjat.ui :as ui]))
 
 (def sketch-picker
   (r/adapt-react-class react-color/SketchPicker))
@@ -279,3 +279,7 @@
                    (= (key-fn t) selected)))
          util/single
          second)]])
+
+;; Chat components moved from core
+(defn chat-menu []
+  [:div "Chat Menu Component Extracted"])
