@@ -20,8 +20,8 @@
 
 (defonce !state (r/atom nil))
 
-;; API request handlers
-(defn make-api-request! [{:keys [message model api-keys]}]
+;; API request handler
+(defn do-request! [{:keys [message model api-keys]}]
   (let [config (allem.core/make-config
                  {:model    model
                   :api-keys api-keys})
@@ -36,9 +36,6 @@
         (.then js/JSON.parse)
         (.then #(js->clj % :keywordize-keys true))
         (.then reply-fn))))
-
-(defn do-request! [params]
-  (make-api-request! params))
 
 (comment
   (-> (do-request! {:message "yolo"

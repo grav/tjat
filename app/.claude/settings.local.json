@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npx shadow-cljs compile:*)",
       "Bash(git add:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
