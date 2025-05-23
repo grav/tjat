@@ -171,6 +171,63 @@
 (defn handle-response-select [selected-chat-id id !state]
   (swap! !state assoc-in [:selections selected-chat-id] id))
 
+;; UI Components
+(defn api-keys-config [api-keys !state]
+  [:div "API Keys Configuration Extracted"])
+
+(defn model-selector [models all-models !state]
+  [:div
+   [:div (platform/format' "Select model: (%d selected)" (count models))]
+   [:select
+    {:multiple true
+     :value     models
+     :on-change #(handle-model-selection % !state)}
+    (for [p all-models]
+      ^{:key (name p)}
+      [:option {:id (name p)}
+       (name p)])]])
+
+(defn text-input [text !state]
+  [:p
+   [:textarea
+    {:style {:width "100%"}
+     :rows  10
+     :value text
+     :on-change #(handle-text-change % !state)}]])
+
+(defn submit-controls [text models api-keys db algolia-client selected-chat selected-chat-id loading !state]
+  [:p
+   {:style {:height 50}}
+   [:button {:disabled (or (empty? text)
+                           (empty? models))
+             :on-click #(handle-submit text models api-keys db algolia-client 
+                                       selected-chat selected-chat-id !state)}
+    "submit"]
+   (when loading
+     [ui/spinner])])
+
+(defn search-section [algolia-client !state]
+  (when algolia-client
+    [:div {:style {:display :flex}}
+     "Search: "
+     [ui/search
+      {:algolia-client algolia-client
+       :on-search      #(handle-search-results % !state)}]]))
+
+(defn chat-interface [state chats db !state]
+  [ui/error-boundary
+   [chat-menu state
+    {:on-chat-toggle-hidden #(handle-chat-toggle-hidden %1 %2 db)
+     :on-chat-select        #(handle-chat-select % chats !state)
+     :on-response-select    (fn [[selected-chat-id id]]
+                              (handle-response-select selected-chat-id id !state))}]])
+
+(defn dev-debug-info [db state]
+  #?(:dev-config
+     [:div
+      [:pre 'db? (str " " (some? db))]
+      [:pre (util/spprint (dissoc state :chats))]]))
+
 ;; Response components
 (defn format-timestamp [timestamp]
   (some-> timestamp
@@ -319,72 +376,23 @@
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         #?(:dev-config
-            [:div
-             [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats))]])
+         [dev-debug-info db @!state]
          [:div
-          [:details #?(:dev-config {:open true})
-           [:summary "API keys"]
-           [:div
-            [:table
-             [:thead [:tr
-                      [:th "Provider"]
-                      [:th "Key"]]]
-             [:tbody
-              (for [[provider _] (:providers allem.core/config)]
-                ^{:key (name provider)}
-                [:tr
-                 [:td (name provider)]
-                 [:td [ui/edit-field {:on-save
-                                      (fn [k]
-                                        (let [api-keys (if (seq k)
-                                                         (merge api-keys
-                                                                {provider k})
-                                                         (dissoc api-keys provider))]
-                                          (swap! !state assoc :api-keys api-keys)
-                                          (js/localStorage.setItem "tjat-api-keys" (pr-str api-keys))))
-                                      :value (get api-keys provider)}]]])]]]]]
+          [api-keys-config api-keys !state]]
 
 
 
          [:div
-          [:div (platform/format' "Select model: (%d selected)" (count models))]
-          [:select
-           {:multiple true
-            :value     models
-            :on-change #(handle-model-selection % !state)}
-           (for [p all-models]
-             ^{:key (name p)}
-             [:option {:id (name p)}
-              (name p)])]
-          [:p
-           [:textarea
-            {:style {:width "100%"}
-             :rows  10
-             :value text
-             :on-change #(handle-text-change % !state)}]]
-          [:p
-           {:style {:height 50}}
-           [:button {:disabled (or (empty? text)
-                                   (empty? models))
-                     :on-click #(handle-submit text models api-keys db algolia-client 
-                                               selected-chat selected-chat-id !state)}
-            "submit"]
-           (when loading
-             [ui/spinner])]
+          [model-selector models all-models !state]
+          [text-input text !state]
+          [submit-controls text models api-keys db algolia-client selected-chat selected-chat-id loading !state]
           (when algolia-client
             [:div {:style {:display :flex}}
              "Search: "
              [ui/search
               {:algolia-client algolia-client
                :on-search      #(handle-search-results % !state)}]])
-          [ui/error-boundary
-           [chat-menu @!state
-            {:on-chat-toggle-hidden #(handle-chat-toggle-hidden %1 %2 db)
-             :on-chat-select        #(handle-chat-select % chats !state)
-             :on-response-select    (fn [[selected-chat-id id]]
-                                      (handle-response-select selected-chat-id id !state))}]]]]))))
+          [chat-interface @!state chats db !state]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
