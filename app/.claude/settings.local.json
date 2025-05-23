@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadow-cljs compile:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}

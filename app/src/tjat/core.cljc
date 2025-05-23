@@ -19,7 +19,8 @@
 
 (defonce !state (r/atom nil))
 
-(defn do-request! [{:keys [message model api-keys]}]
+;; API request handlers
+(defn make-api-request! [{:keys [message model api-keys]}]
   (let [config (allem.core/make-config
                  {:model    model
                   :api-keys api-keys})
@@ -35,53 +36,78 @@
         (.then #(js->clj % :keywordize-keys true))
         (.then reply-fn))))
 
+(defn do-request! [params]
+  (make-api-request! params))
+
 (comment
   (-> (do-request! {:message "yolo"
                     :model   :gpt-4o})
       (.then util/spprint)
       (.then println)))
 
-(def think-start
+;; Markdown extensions for think blocks
+(def think-start-extension
   (clj->js
     {:type "lang"
      :regex #"<think>"
      :replace "<small><details><summary><i>Think \uD83D\uDCAD</i></summary><i>"}))
 
-(def think-end
+(def think-end-extension
   (clj->js
     {:type "lang"
      :regex #"</think>"
      :replace "</i><hr></details></small>"}))
 
-(defn response-view [{:keys [request-time id text] :as x}]
+;; Response components
+(defn format-timestamp [timestamp]
+  (some-> timestamp
+          js/Date.parse
+          (js/Date.)
+          str))
+
+(defn create-markdown-converter []
+  (doto (showdown/Converter.
+          (clj->js {:extensions [think-start-extension
+                                 think-end-extension]}))
+    (.setFlavor "github")))
+
+(defn response-timestamp [{:keys [request-time]}]
+  [:div [:i (format-timestamp request-time)]])
+
+(defn response-content [{:keys [text]}]
+  [:div [:p
+         {:dangerouslySetInnerHTML
+          {:__html (.makeHtml (create-markdown-converter) text)}}]])
+
+(defn response-view [{:keys [id] :as response}]
   (when id
     [:div
-     [:div [:i (some-> request-time
-                       js/Date.parse
-                       (js/Date.)
-                       str)]]
-     [:div [:p
-            {:dangerouslySetInnerHTML
-             {:__html (.makeHtml
-                        ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                        (doto (showdown/Converter.
-                                (clj->js {:extensions [think-start
-                                                       think-end]}))
-                          (.setFlavor "github")) text)}}]]]))
+     [response-timestamp response]
+     [response-content response]]))
+
+(defn response-tab-item [{:keys [model id]} 
+                         {:keys [chat-id selected-response-id index on-response-select]}]
+  ^{:key id} 
+  [:div 
+   [:div
+    {:style    {:padding 10}
+     :on-click #(on-response-select [chat-id id])}
+    [:div {:style {:background-color (when (or (= selected-response-id id)
+                                               (and (nil? selected-response-id)
+                                                    (zero? index))) :lightgray)}}
+     (name model)]]])
 
 (defn response-tabs [{:keys     [selected-response-id]
                       chat-id   :id
                       responses :responses}
                      {:keys [on-response-select]}]
   [:div {:style {:display :flex}}
-   (for [[i {:keys [model id] :as v}] (map vector (range) (sort-by :time responses))]
-     ^{:key id} [:div [:div
-                       {:style    {:padding 10}
-                        :on-click #(on-response-select [chat-id id])}
-                       [:div {:style {:background-color (when (or (= selected-response-id id)
-                                                                  (and (nil? selected-response-id)
-                                                                       (zero? i))) :lightgray)}}
-                        (name model)]]])])
+   (for [[i response] (map vector (range) (sort-by :time responses))]
+     [response-tab-item response 
+      {:chat-id chat-id
+       :selected-response-id selected-response-id
+       :index i
+       :on-response-select on-response-select}])])
 
 
 (defn chat-menu []
