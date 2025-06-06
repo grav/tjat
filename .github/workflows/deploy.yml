@@ -22,6 +22,7 @@ jobs:
       uses: DeLaGuardo/setup-clojure@12.5
       with:
         cli: 1.11.1.1435
+        cache: deps
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -46,7 +47,7 @@ jobs:
     - name: Generate favicon
       run: |
         cd app
-        magick tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico
+        convert tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico
     
     - name: Deploy to S3
       env:
