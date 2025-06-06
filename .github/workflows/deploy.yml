@@ -1,0 +1,78 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: app/package-lock.json
+    
+    - name: Install ImageMagick
+      run: sudo apt-get update && sudo apt-get install -y imagemagick
+    
+    - name: Install dependencies
+      run: |
+        cd app
+        npm ci
+    
+    - name: Build application
+      run: |
+        cd app
+        npx shadow-cljs release :app
+    
+    - name: Generate favicon
+      run: |
+        cd app
+        magick tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico
+    
+    - name: Deploy to S3
+      env:
+        S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
+        S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      run: |
+        # Install AWS CLI
+        pip install awscli
+        
+        cd app
+        
+        # Deploy favicon
+        aws s3api put-object \
+          --endpoint-url "$S3_ENDPOINT_URL" \
+          --bucket "$S3_BUCKET" \
+          --key "tjat/favicon.ico" --body public/favicon.ico \
+          --acl public-read \
+          --checksum-algorithm CRC32
+        
+        # Deploy main.js
+        aws s3api put-object \
+          --endpoint-url "$S3_ENDPOINT_URL" \
+          --bucket "$S3_BUCKET" \
+          --key "tjat/js/main.js" --body public-release/js/main.js \
+          --acl public-read \
+          --checksum-algorithm CRC32
+        
+        # Generate index.html with cache buster
+        cachebuster=$(uuidgen)
+        sed 's/main.js/main.js?'"$cachebuster"'/g' public/index.html > index_with_cachebuster.html
+        
+        # Deploy index.html
+        aws s3api put-object \
+          --endpoint-url "$S3_ENDPOINT_URL" \
+          --bucket "$S3_BUCKET" \
+          --key "tjat/index.html" --body index_with_cachebuster.html \
+          --acl public-read \
+          --checksum-algorithm CRC32
