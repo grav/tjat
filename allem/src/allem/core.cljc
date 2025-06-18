@@ -94,7 +94,7 @@
   (let [provider (or provider
                      (-> (get-in config [:models model])
                          first))
-        _ (assert provider model)
+        ;_ (assert provider model)
         {:keys [models]
          :as   config} (get-in config [:providers provider])
         {:keys [model-name post-process body-params]
