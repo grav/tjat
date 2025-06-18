@@ -396,9 +396,9 @@
                                                                              (clj->js
                                                                                {:clientName "google-web"
                                                                                 :redirectURL js/window.location.href}))]
-                                       (println 'auth-url auth-url)
                                        (swap! !ref-state
-                                              merge init-instant-db)))
+                                              merge init-instant-db
+                                              {:auth-url auth-url})))
                                    (when (and (seq algolia-app-id)
                                               (seq algolia-api-key))
                                      (swap! !ref-state
@@ -415,7 +415,10 @@
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 [:div 'yolo]
+                                 (let [{:keys [auth-url]} @!ref-state]
+                                   [:div 'google-auth
+                                    [:button {:on-click #(set! (.-href (.-location js/window)) auth-url)}
+                                     "auth"]])
                                  #_(let [{:keys                      [instantdb-app-id]
                                           {algolia-app-id  :app-id
                                            algolia-api-key :api-key} :algolia} @!state
