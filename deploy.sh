@@ -4,6 +4,8 @@ set -euo pipefail
 set -x
 dir="${1:-tjat}"
 
+export AWS_PAGER=""
+
 
 pushd app
 
