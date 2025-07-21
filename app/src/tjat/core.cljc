@@ -21,19 +21,22 @@
 (defonce !state (r/atom nil))
 
 (defn do-request! [{:keys [messages model api-keys]}]
-  (let [config (allem.core/make-config
-                 {:model    model
-                  :api-keys api-keys})
-        {:keys [reply-fn headers url body]} (allem.core/apply-config
-                                              (assoc config :messages messages))]
-    (-> (http/send! client {:method  :post
-                            :url     url
-                            :headers headers
-                            :body    (js/JSON.stringify (clj->js body))})
-        (.then #(get % :body))
-        (.then js/JSON.parse)
-        (.then #(js->clj % :keywordize-keys true))
-        (.then reply-fn))))
+  (-> (js/Promise.resolve nil)
+      (.then (fn [_]
+               (let [config (allem.core/make-config
+                              {:model    model
+                               :api-keys api-keys})
+                     {:keys [reply-fn headers url body]} (allem.core/apply-config
+                                                           (assoc config :messages messages))]
+                 (-> (http/send! client {:method  :post
+                                         :url     url
+                                         :headers headers
+                                         :body    (js/JSON.stringify (clj->js body))})
+                     (.then #(get % :body))
+                     (.then js/JSON.parse)
+                     (.then #(js->clj % :keywordize-keys true))
+                     (.then reply-fn)))))))
+
 
 (comment
   (-> (do-request! {:message "yolo"
