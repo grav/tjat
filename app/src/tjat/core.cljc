@@ -186,7 +186,7 @@
          #?(:dev-config
             [:div
              [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats))]])
+             [:pre (util/spprint (dissoc @!state :chats :uploaded-file))]])
          [:div
           [:details #?(:dev-config {:open true})
            [:summary "API keys"]
