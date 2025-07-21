@@ -13,19 +13,22 @@
             [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
             ["algoliasearch" :as algolia]
-            [clojure.edn]))
+            [clojure.edn]
+            [clojure.string]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
 (defonce !state (r/atom nil))
 
-(defn do-request! [{:keys [message model api-keys]}]
+(defn do-request! [{:keys [message messages model api-keys]}]
   (let [config (allem.core/make-config
                  {:model    model
                   :api-keys api-keys})
-        {:keys [reply-fn headers url body]} (allem.core/apply-config
-                                              (assoc config
-                                                :message message))]
+        config-with-messages (cond
+                               messages (assoc config :messages messages)
+                               message (assoc config :message message)
+                               :else (throw (ex-info "Either message or messages must be provided" {})))
+        {:keys [reply-fn headers url body]} (allem.core/apply-config config-with-messages)]
     (-> (http/send! client {:method  :post
                             :url     url
                             :headers headers
@@ -235,6 +238,28 @@
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
+           [:label "Upload file: "]
+           [:input {:type "file"
+                    :on-change (fn [e]
+                                 (let [file (first (array-seq (.-files (.-target e))))]
+                                   (when file
+                                     (let [reader (js/FileReader.)]
+                                       (set! (.-onload reader)
+                                             (fn [event]
+                                               (let [data-url (.-result (.-target event))
+                                                     ;; Extract base64 data from data URL (remove "data:image/png;base64," prefix)
+                                                     base64-data (second (clojure.string/split data-url #","))]
+                                                 (swap! !state assoc :uploaded-file {:file file
+                                                                                      :base64 base64-data
+                                                                                      :name (.-name file)
+                                                                                      :type (.-type file)}))))
+                                       (.readAsDataURL reader file)))))}]]
+          (when-let [{:keys [name type]} (:uploaded-file @!state)]
+            [:p (str "Uploaded: " name " (" type ")")
+             [:button {:on-click #(swap! !state dissoc :uploaded-file)
+                       :style {:margin-left 10}}
+              "Clear"]])
+          [:p
            {:style {:height 50}}
            [:button {:disabled (or (empty? text)
                                    (empty? models))
@@ -270,9 +295,12 @@
                                                       (-> s
                                                           (assoc :selected-chat-id chat-id)
                                                           (update-in [:loading-chats chat-id] inc))))
-                                      (-> (do-request! {:message  text
-                                                        :model    model
-                                                        :api-keys api-keys})
+                                      (-> (do-request! (let [uploaded-file (:uploaded-file @!state)
+                                                                         messages (cond-> [text]
+                                                                                          uploaded-file (conj uploaded-file))]
+                                                         {:messages messages
+                                                          :model    model
+                                                          :api-keys api-keys}))
                                           (.then (fn [v]
                                                    (let [response-id (or (when db
                                                                            (instantdb/id))

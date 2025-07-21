@@ -2,6 +2,7 @@
   (:require
     [allem.util :as util]
     [clojure.edn :as edn]
+    [clojure.string]
     [allem.config]
     [shadow.resource :as rc]))
 
@@ -40,23 +41,31 @@
 
     (comment
       (claude' {:msg "why is the sky blue?"})))
-(defn message->content [{:keys [image-fn text-fn]} m]
-  (cond
-    (string? m)
-    (text-fn m)
+  (defn message->content [{:keys [image-fn text-fn]} m]
+    (cond
+      (string? m)
+      (text-fn m)
 
-    (map? m)
-    m
+      (map? m)
+      (if (and (:file m) (:base64 m) (:type m))
+        ;; Handle uploaded file with base64 data
+        (if (and image-fn (clojure.string/starts-with? (:type m) "image/"))
+          (image-fn {:mime-type (:type m)
+                     :base64-data (:base64 m)})
+          ;; For non-image files, just return as structured content
+          (text-fn (str "File: " (:name m) " (type: " (:type m) ")")))
+        ;; Regular map content
+        m)
 
-    #_#_(instance? java.io.InputStream m)
-    (let [is (BufferedInputStream. m)
-          mimetype (URLConnection/guessContentTypeFromStream is)]
-      (when (str/starts-with? mimetype "image/")
-        (.reset is)
-        (image-fn {:mime-type mimetype
-                   :input-stream is})))
+      #_#_(instance? java.io.InputStream m)
+      (let [is (BufferedInputStream. m)
+            mimetype (URLConnection/guessContentTypeFromStream is)]
+        (when (str/starts-with? mimetype "image/")
+          (.reset is)
+          (image-fn {:mime-type mimetype
+                     :input-stream is})))
 
-    :else (throw (ex-info (str "unknown content" m) {:m m}))))
+      :else (throw (ex-info (str "unknown content" m) {:m m}))))
 
 
 (do
