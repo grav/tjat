@@ -20,15 +20,12 @@
 
 (defonce !state (r/atom nil))
 
-(defn do-request! [{:keys [message messages model api-keys]}]
+(defn do-request! [{:keys [messages model api-keys]}]
   (let [config (allem.core/make-config
                  {:model    model
                   :api-keys api-keys})
-        config-with-messages (cond
-                               messages (assoc config :messages messages)
-                               message (assoc config :message message)
-                               :else (throw (ex-info "Either message or messages must be provided" {})))
-        {:keys [reply-fn headers url body]} (allem.core/apply-config config-with-messages)]
+        {:keys [reply-fn headers url body]} (allem.core/apply-config
+                                              (assoc config :messages messages))]
     (-> (http/send! client {:method  :post
                             :url     url
                             :headers headers

@@ -47,23 +47,11 @@
       (text-fn m)
 
       (map? m)
-      (if (and (:file m) (:base64 m) (:type m))
-        ;; Handle uploaded file with base64 data
-        (if (and image-fn (clojure.string/starts-with? (:type m) "image/"))
-          (image-fn {:mime-type (:type m)
-                     :base64-data (:base64 m)})
-          ;; For non-image files, just return as structured content
-          (text-fn (str "File: " (:name m) " (type: " (:type m) ")")))
-        ;; Regular map content
-        m)
-
-      #_#_(instance? java.io.InputStream m)
-      (let [is (BufferedInputStream. m)
-            mimetype (URLConnection/guessContentTypeFromStream is)]
-        (when (str/starts-with? mimetype "image/")
-          (.reset is)
-          (image-fn {:mime-type mimetype
-                     :input-stream is})))
+      (let [{:keys [file base64 type]} m]
+        (assert (and file base64 type image-fn (clojure.string/starts-with? type "image/"))
+                (str "File uploads are only supported for images when image-fn is available. "
+                     "Got file type: " type ", has image-fn: " (some? image-fn)))
+        (image-fn {:mime-type type :base64-data base64}))
 
       :else (throw (ex-info (str "unknown content" m) {:m m}))))
 
@@ -131,12 +119,10 @@
 
 
 (defn apply-config
-  [{:keys [message messages] :as config}]
-  (assert (not (and message messages)))
+  [{:keys [messages] :as config}]
   (let [{:keys [model headers-fn url-fn body-params url]
          :as   config} config
-        url-fn (or url-fn (constantly url))
-        messages (or messages [message])]
+        url-fn (or url-fn (constantly url))]
     (merge
       config
       {:url     (url-fn config)
