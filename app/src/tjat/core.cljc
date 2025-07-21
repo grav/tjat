@@ -243,27 +243,26 @@
                     :multiple true
                     :on-change (fn [e]
                                  (let [files (array-seq (.-files (.-target e)))]
-                                   (when (seq files)
-                                     ;; Process each selected file
-                                     (doseq [file files]
-                                       (let [reader (js/FileReader.)]
-                                         (set! (.-onload reader)
-                                               (fn [event]
-                                                 (let [data-url (.-result (.-target event))
-                                                       ;; Extract base64 data from data URL (remove "data:image/png;base64," prefix)
-                                                       base64-data (second (clojure.string/split data-url #","))]
-                                                   (swap! !state update :uploaded-files (fn [files] 
-                                                                                                                           (conj (or files []) {:file file
-                                                                                                                                                 :base64 base64-data
-                                                                                                                                                 :name (.-name file)
-                                                                                                                                                 :type (.-type file)}))))))
-                                         (.readAsDataURL reader file))))))}]]
+                                   (doseq [file files]
+                                     (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
+                                       (when-not (get-in @!state [:uploaded-files file-key])
+                                         (let [reader (js/FileReader.)]
+                                           (set! (.-onload reader)
+                                                 (fn [event]
+                                                   (let [data-url (.-result (.-target event))
+                                                         base64-data (second (clojure.string/split data-url #","))]
+                                                     (swap! !state assoc-in [:uploaded-files file-key] 
+                                                            {:file file
+                                                             :base64 base64-data
+                                                             :name (.-name file)
+                                                             :type (.-type file)}))))
+                                           (.readAsDataURL reader file)))))))}]]
           (when-let [uploaded-files (:uploaded-files @!state)]
             (when (seq uploaded-files)
               [:div
                [:p (str "Uploaded " (count uploaded-files) " file(s):")]
-               (for [{:keys [name type]} uploaded-files]
-                 ^{:key name} [:p {:style {:margin-left 20}} (str "• " name " (" type ")")])
+               (for [[file-key {:keys [name type]}] uploaded-files]
+                 ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " name " (" type ")")])
                [:button {:on-click #(swap! !state dissoc :uploaded-files)
                          :style {:margin-left 10}}
                 "Clear All"]]))
@@ -304,7 +303,8 @@
                                                           (assoc :selected-chat-id chat-id)
                                                           (update-in [:loading-chats chat-id] inc))))
                                       (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
-                                                                         messages (concat [text] (or uploaded-files []))]
+                                                                         file-values (when uploaded-files (vals uploaded-files))
+                                                                         messages (concat [text] (or file-values []))]
                                                          {:messages messages
                                                           :model    model
                                                           :api-keys api-keys}))
