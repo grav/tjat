@@ -186,7 +186,7 @@
          #?(:dev-config
             [:div
              [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats :uploaded-file))]])
+             [:pre (util/spprint (dissoc @!state :chats :uploaded-files))]])
          [:div
           [:details #?(:dev-config {:open true})
            [:summary "API keys"]
@@ -238,27 +238,35 @@
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
-           [:label "Upload file: "]
+           [:label "Upload files: "]
            [:input {:type "file"
+                    :multiple true
                     :on-change (fn [e]
-                                 (let [file (first (array-seq (.-files (.-target e))))]
-                                   (when file
-                                     (let [reader (js/FileReader.)]
-                                       (set! (.-onload reader)
-                                             (fn [event]
-                                               (let [data-url (.-result (.-target event))
-                                                     ;; Extract base64 data from data URL (remove "data:image/png;base64," prefix)
-                                                     base64-data (second (clojure.string/split data-url #","))]
-                                                 (swap! !state assoc :uploaded-file {:file file
-                                                                                      :base64 base64-data
-                                                                                      :name (.-name file)
-                                                                                      :type (.-type file)}))))
-                                       (.readAsDataURL reader file)))))}]]
-          (when-let [{:keys [name type]} (:uploaded-file @!state)]
-            [:p (str "Uploaded: " name " (" type ")")
-             [:button {:on-click #(swap! !state dissoc :uploaded-file)
-                       :style {:margin-left 10}}
-              "Clear"]])
+                                 (let [files (array-seq (.-files (.-target e)))]
+                                   (when (seq files)
+                                     ;; Process each selected file
+                                     (doseq [file files]
+                                       (let [reader (js/FileReader.)]
+                                         (set! (.-onload reader)
+                                               (fn [event]
+                                                 (let [data-url (.-result (.-target event))
+                                                       ;; Extract base64 data from data URL (remove "data:image/png;base64," prefix)
+                                                       base64-data (second (clojure.string/split data-url #","))]
+                                                   (swap! !state update :uploaded-files (fn [files] 
+                                                                                                                           (conj (or files []) {:file file
+                                                                                                                                                 :base64 base64-data
+                                                                                                                                                 :name (.-name file)
+                                                                                                                                                 :type (.-type file)}))))))
+                                         (.readAsDataURL reader file))))))}]]
+          (when-let [uploaded-files (:uploaded-files @!state)]
+            (when (seq uploaded-files)
+              [:div
+               [:p (str "Uploaded " (count uploaded-files) " file(s):")]
+               (for [{:keys [name type]} uploaded-files]
+                 ^{:key name} [:p {:style {:margin-left 20}} (str "• " name " (" type ")")])
+               [:button {:on-click #(swap! !state dissoc :uploaded-files)
+                         :style {:margin-left 10}}
+                "Clear All"]]))
           [:p
            {:style {:height 50}}
            [:button {:disabled (or (empty? text)
@@ -295,9 +303,8 @@
                                                       (-> s
                                                           (assoc :selected-chat-id chat-id)
                                                           (update-in [:loading-chats chat-id] inc))))
-                                      (-> (do-request! (let [uploaded-file (:uploaded-file @!state)
-                                                                         messages (cond-> [text]
-                                                                                          uploaded-file (conj uploaded-file))]
+                                      (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
+                                                                         messages (concat [text] (or uploaded-files []))]
                                                          {:messages messages
                                                           :model    model
                                                           :api-keys api-keys}))
