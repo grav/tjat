@@ -40,6 +40,5 @@ aws s3api put-object \
   --bucket "$S3_BUCKET" \
   --key "${dir}/index.html" --body "$index_file" \
   --acl public-read \
-  --checksum-algorithm CRC32
 
 popd
