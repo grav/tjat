@@ -261,7 +261,9 @@
                             :background-color (if @drag-over? "#f0f8ff" "#fafafa")
                             :border-radius "5px"
                             :cursor "pointer"
-                            :transition "all 0.2s ease"}
+                            :transition "all 0.2s ease"
+                            :outline "none"}
+                    :tabIndex 0
                     :on-click (fn [e]
                                 (let [input (.createElement js/document "input")]
                                   (set! (.-type input) "file")
@@ -281,11 +283,22 @@
                                (.preventDefault e)
                                (.stopPropagation e)
                                (reset! drag-over? false)
-                               (handle-files (array-seq (.-files (.-dataTransfer e)))))}
+                               (handle-files (array-seq (.-files (.-dataTransfer e)))))
+                    :on-paste (fn [e]
+                                (.preventDefault e)
+                                (when-let [clipboard-data (.-clipboardData e)]
+                                  (let [items (.-items clipboard-data)
+                                        files (->> (range (.-length items))
+                                                   (map #(.item items %))
+                                                   (filter #(= (.-kind %) "file"))
+                                                   (map #(.getAsFile %))
+                                                   (remove nil?))]
+                                    (when (seq files)
+                                      (handle-files files)))))}
               [:p {:style {:margin "0"}}
                (if @drag-over?
                  "Drop files here"
-                 "Click to select files or drag and drop them here")]])]
+                 "Click to select files, drag and drop them here, or paste from clipboard (Ctrl+V)")]])]
           (when-let [uploaded-files (:uploaded-files @!state)]
             (when (seq uploaded-files)
               [:div
