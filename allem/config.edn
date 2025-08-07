@@ -27,7 +27,8 @@
                     :o3-mini nil
                     :o4-mini nil
                     :gpt-4.5-preview nil
-                    :gpt-4.1 nil}}
+                    :gpt-4.1 nil
+                    :gpt-5 nil}}
   :gemini {:models {:gemini-1.5-flash
                     {:model-name "gemini-1.5-flash"}
                     :gemini-2.0-flash nil
@@ -62,6 +63,7 @@
           :o3-mini [:openai]
           :o4-mini [:openai]
           :gpt-4.5-preview [:openai]
+          :gpt-5 [:openai]
           :gemini-1.5-flash [:gemini]
           :gemini-2.0-flash [:gemini]
           :gemini-2.5-pro-exp-03-25 [:gemini]
