@@ -246,6 +246,11 @@
     [:div
      [upload/drop-zone]])
 
+(defn instant-db-error-handler [res]
+  (let [e (.-error res)]
+    (js/console.error e)
+    (js/alert (.-message e))))
+
 (defn instantdb-view []
   (let [!ref-state (atom nil)]
     (r/create-class
@@ -255,7 +260,8 @@
                                      (reset! !ref-state
                                              (db/init-instant-db {:app-id        instantdb-app-id-persisted
                                                                   :subscriptions {:chats {:responses {}}}
-                                                                  :!state        !state})))
+                                                                  :!state        !state
+                                                                  :on-error instant-db-error-handler})))
                                    (swap! !state assoc :instantdb-app-id instantdb-app-id-persisted)))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
@@ -286,7 +292,8 @@
                                                                                         (db/init-instant-db
                                                                                           {:app-id        s
                                                                                            :subscriptions {:chats {:responses {}}}
-                                                                                           :!state        !state}))
+                                                                                           :!state        !state
+                                                                                           :on-error instant-db-error-handler}))
                                                                                 (swap! !state assoc :instantdb-app-id s))
                                                                               (do
                                                                                 (js/localStorage.removeItem "instantdb-app-id")
