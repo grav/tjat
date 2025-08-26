@@ -3,21 +3,15 @@
             [allem.util :as util]
             [reagent.core :as r]
             [goog.dom :as gdom]
-            [shadow.resource :as rc]
-            [shadow.resource :as rc]
             [allem.core]
-            [allem.util :as utils]
             [httpurr.client :as http]
             [httpurr.client.xhr-alt :refer [client]]
             [tjat.markdown :as markdown]
-            [tjat.ui-components :as ui]
-            [tjat.upload :as upload]))
+            ["showdown" :as showdown]))
 
 (defonce root (createRoot (gdom/getElement "app")))
 
 (defonce !state (r/atom nil))
-(def foo
-  (rc/inline "keys.edn"))
 
 (defn do-request! [{:keys [message model api-keys]}]
   (let [config (allem.core/make-config
@@ -53,11 +47,11 @@
                   :value     (if is-editing?
                                text
                                (if text
-                                 (apply str (repeat (count text) "●"))
+                                 (apply str (repeat (count text) (js/String.fromCodePoint 0x25CF)))
                                  "[none]"))
                   :on-change (fn [e]
                                (swap! !state assoc :text (.-value (.-target e))))
-                  :on-focus  #(swap! !state assoc :is-editing? true)
+                  :on-focus #(swap! !state assoc :is-editing? true)
 
                   :on-key-down #(when (= "Enter" (.-key %))
                                   (on-save text)
@@ -67,16 +61,15 @@
                                (swap! !state assoc :is-editing? false :text nil)))}]
 
          (when is-editing?
-           [:button {:ref      #(reset! !button-ref %)
-                     :on-blur  (fn [e]
-                                 (when (not= @!input-ref (.-relatedTarget e))
-                                   (swap! !state assoc :is-editing? false :text nil)))
+           [:button {:ref         #(reset! !button-ref %)
+                     :on-blur     (fn [e]
+                                    (when (not= @!input-ref (.-relatedTarget e))
+                                      (swap! !state assoc :is-editing? false :text nil)))
                      :on-key-down #(when (= "Escape" (.-key %))
                                      (.blur (.-target %)))
-                     :on-click #(do
-                                  (js/console.log "click")
-                                  (on-save text)
-                                  (swap! !state assoc :is-editing? false :text nil))}
+                     :on-click (fn [_]
+                                 (on-save text)
+                                 (swap! !state assoc :is-editing? false :text nil))}
             "Save"])]))))
 
 
@@ -132,7 +125,11 @@
                                              (swap! !state assoc :answer v))))}
             "submit"]]
           [:p
-           (some-> answer markdown/md'->hiccup)]]]))))
+           {:dangerouslySetInnerHTML (clj->js {:__html (.makeHtml (showdown/Converter.
+                                                                    ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
+                                                                    (clj->js {:tables true})) answer)})}
+
+           #_(some-> answer markdown/md'->hiccup)]]]))))
 
 #_(defn testit []
     [:div
