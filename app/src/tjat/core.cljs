@@ -79,7 +79,7 @@
                                    clojure.edn/read-string)]
     (fn []
       (let [all-models (keys (get allem.core/config :models))
-            {:keys [text answer model api-keys]
+            {:keys [text answer model api-keys loading]
              :or   {model    (first all-models)
                     api-keys api-keys-persisted}} @!state
             {:keys [provider]} (allem.core/make-config {:model model})]
@@ -118,18 +118,34 @@
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
-           [:button {:on-click #(-> (do-request! {:message text
-                                                  :model   model
-                                                  :api-keys api-keys})
-                                    (.then (fn [v]
-                                             (swap! !state assoc :answer v))))}
-            "submit"]]
+           {:style {:height 50}}
+           [:button {:on-click #(do
+                                  (swap! !state assoc :loading true)
+                                  (-> (do-request! {:message  text
+                                                    :model    model
+                                                    :api-keys api-keys})
+                                      (.then (fn [v]
+                                               (swap! !state assoc :answer v
+                                                      :loading false)))))}
+            "submit"]
+           (when loading
+             [:svg.spinner
+              {:width   "20"
+               :height  "20"
+               :viewBox "0 0 50 50"}
+              [:circle.spinner-circle
+               {:cx           "25"
+                :cy           "25"
+                :r            "20"
+                :fill         "none"
+                :stroke       "#007bff"
+                :stroke-width "4"}]])]
           [:p
-           {:dangerouslySetInnerHTML (clj->js {:__html (.makeHtml (showdown/Converter.
-                                                                    ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                                                                    (clj->js {:tables true})) answer)})}
-
-           #_(some-> answer markdown/md'->hiccup)]]]))))
+           {:dangerouslySetInnerHTML {:__html (.makeHtml
+                                                (doto (showdown/Converter.
+                                                        ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
+                                                        #_(clj->js {:tables true}))
+                                                  (.setFlavor "github")) answer)}}]]]))))
 
 #_(defn testit []
     [:div
