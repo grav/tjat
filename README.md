@@ -19,7 +19,19 @@ Q: Can people read my chat history?
 
 A: Only if they can guess your InstantDB app-id!
 
+## Running local models via Ollama
 
+To make Ollama accept requests from the browser, you need to allow
+additional origins when starting Ollama, eg:
+```
+$ OLLAMA_ORIGINS=https://betafunk.dk ollama serve
+```
+
+and then start your model, eg:
+
+```
+$ ollama run qwen3:8b
+```
 
 ## Developing
 
