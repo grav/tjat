@@ -205,6 +205,7 @@
 
                                                   selected-chat-id)
                                         start-time (js/Date.)]
+                                    (swap! !state assoc :selected-chat-id chat-id)
                                     (-> (do-request! {:message  text
                                                       :model    model
                                                       :api-keys api-keys})
@@ -227,16 +228,15 @@
                                                          (-> (.saveObject ^js/Object algolia-client
                                                                           (clj->js {:indexName a/index-name-responses
                                                                                     :body      {:objectID response-id
-                                                                                                :chat_id chat-id
-                                                                                                :text    v}}))
+                                                                                                :chat_id  chat-id
+                                                                                                :text     v}}))
                                                              (.then js/console.log)))
 
                                                        (swap! !state (fn [s]
                                                                        (-> s
 
                                                                            (assoc-in [:selections chat-id] response-id)
-                                                                           (assoc :loading false)
-                                                                           (assoc :selected-chat-id chat-id)))))
+                                                                           (assoc :loading false)))))
                                                      ;; local-only
                                                      (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
                                                                          (filter (fn [[_ id]]
@@ -250,8 +250,7 @@
                                                                                                                            (assoc response
                                                                                                                              :id response-id))) [])
                                                                            (assoc-in [:selections chat-id] response-id)
-                                                                           (assoc :loading false)
-                                                                           (assoc :selected-chat-id chat-id))))
+                                                                           (assoc :loading false))))
                                                        100)))))
                                         (.catch (fn [e]
                                                   (js/alert
