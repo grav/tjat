@@ -1,13 +1,13 @@
 # Tjat
 
+A simple, fully browser-based LLM completion client featuring:
+- integration to multiple LLMs
+- chat history via [InstantDB](https://instantdb.com) 
+
 ## Pre-requisites
-```
-# in root dir
-ln -s ../allem
-```
 
 ```
-# in `app`
+cd app
 npm i
 ```
 
