@@ -2,6 +2,7 @@
   (:require
     [allem.util :as util]
     [clojure.edn :as edn]
+    [clojure.string]
     [allem.config]
     [shadow.resource :as rc]))
 
@@ -46,15 +47,11 @@
     (text-fn m)
 
     (map? m)
-    m
-
-    #_#_(instance? java.io.InputStream m)
-    (let [is (BufferedInputStream. m)
-          mimetype (URLConnection/guessContentTypeFromStream is)]
-      (when (str/starts-with? mimetype "image/")
-        (.reset is)
-        (image-fn {:mime-type mimetype
-                   :input-stream is})))
+    (let [{:keys [file base64 type] :as args} m]
+      (when-not (and file base64 type image-fn (clojure.string/starts-with? type "image/"))
+        (throw (ex-info (str "File uploads are only supported for images when image-fn is available. "
+                             "Got file type: " type ", has image-fn: " (some? image-fn)) nil)))
+      (image-fn {:mime-type type :base64-data base64}))
 
     :else (throw (ex-info (str "unknown content" m) {:m m}))))
 
@@ -122,12 +119,10 @@
 
 
 (defn apply-config
-  [{:keys [message messages] :as config}]
-  (assert (not (and message messages)))
+  [{:keys [messages] :as config}]
   (let [{:keys [model headers-fn url-fn body-params url]
          :as   config} config
-        url-fn (or url-fn (constantly url))
-        messages (or messages [message])]
+        url-fn (or url-fn (constantly url))]
     (merge
       config
       {:url     (url-fn config)
