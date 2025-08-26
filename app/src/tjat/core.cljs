@@ -307,7 +307,7 @@
                                                       (cond
                                                         (some-> (ex-data e) :status)
                                                         (str "Error: Got status " (:status (ex-data e))
-                                                             " from API")
+                                                             " from API (" (name model) ")")
                                                         :else
                                                         (str e)))
                                                     (swap! !state update-in [:loading-chats chat-id] dec)))))))}
