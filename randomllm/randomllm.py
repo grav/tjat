@@ -36,11 +36,14 @@ def chat_completions():
 
     # Extract some data from the request to make the response format match OpenAI's
     model = data.get('model', 'random-response-model')
+    sleep = data.get('sleep')
+    think = data.get('think')
 
     # Generate a random response
     response_content = random.choice(random_responses)
-
-    # Create response in OpenAI format
+    if think:
+        response_content = "<think>\nThinking really, really hard ...\n\nPondering still ...\n\nOkay, I think I got it!\n\n</think>\n" + response_content
+        # Create response in OpenAI format
     response = {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
@@ -62,6 +65,8 @@ def chat_completions():
             "total_tokens": len(response_content.split())
         }
     }
+    if sleep:
+        time.sleep(sleep)
 
     return jsonify(response)
 

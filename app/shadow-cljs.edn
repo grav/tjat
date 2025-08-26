@@ -3,5 +3,7 @@
                 :asset-path "/js"
                 :output-dir "public/js"
                 :modules {:main {:init-fn tjat.core/main}}
-                :release {:output-dir "public-release/js"}}}
+                :release {:output-dir "public-release/js"}
+                :dev {:compiler-options
+                      {:reader-features #{:dev-config}}}}}
  :dev-http {8000 "public"}}

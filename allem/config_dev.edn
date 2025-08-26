@@ -1,0 +1,8 @@
+{:providers {:randomllm {:url    "http://localhost:8042/v1/chat/completions"
+                         :models {:random1 nil
+                                  :random2 {:model-name  "random2"
+                                            :body-params {:sleep 2}}
+                                  :random3 {:body-params {:think true}}}}}
+ :models    {:random1 [:randomllm]
+             :random2 [:randomllm]
+             :random3 [:randomllm]}}
