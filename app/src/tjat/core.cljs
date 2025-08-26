@@ -405,7 +405,7 @@
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
-                                    [:h1 "Tjat!"]
+                                    [:h1 "tjat!"]
                                     [:details {:open false}
                                      [:summary "Sync settings"]
                                      [:div {:style {:display :flex}}
