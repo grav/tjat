@@ -86,59 +86,60 @@
   (-> (rc/inline "./config.edn")
       edn/read-string))
 
-(do
-  (defn make-config [{:keys [model provider api-keys]}]
-    (let [provider (or provider
-                       (-> (get-in config [:models model])
-                           first))
-          _ (assert provider model)
-          {:keys [models]
-           :as config} (get-in config [:providers provider])
-          {:keys [model-name post-process body-params]
-           :or   {model-name (name model)}} (if model
-                                              (get models model)
-                                              (first (vals models)))
-          config-fns (-> (get allem.config/functions provider)
-                         allem.config/normalize-config)]
-      (merge
-        (dissoc config
-                :config
-                :models)
-        config-fns
-        (cond-> {:model        model-name
-                 ;; TODO - maybe nuke post-process ...
-                 :post-process (or (some-> post-process #_resolve)
-                                   identity)
-                 :api-key      (get api-keys provider)
-                 :provider     provider}
-                body-params (assoc :body-params body-params))))))
+
+(defn make-config [{:keys [model provider api-keys]}]
+  (let [provider (or provider
+                     (-> (get-in config [:models model])
+                         first))
+        _ (assert provider model)
+        {:keys [models]
+         :as   config} (get-in config [:providers provider])
+        {:keys [model-name post-process body-params]
+         :or   {model-name (name model)}} (if model
+                                            (get models model)
+                                            (first (vals models)))
+        config-fns (-> (get allem.config/functions provider)
+                       allem.config/normalize-config)]
+    (merge
+      (dissoc config
+              :config
+              :models)
+      config-fns
+      (cond-> {:model        model-name
+               ;; TODO - maybe nuke post-process ...
+               :post-process (or (some-> post-process #_resolve)
+                                 identity)
+               :api-key      (get api-keys provider)
+               :provider     provider}
+              body-params (assoc :body-params body-params)))))
 
 
 (comment
   (make-config {:model :gemini-1.5-flash}))
 
-(do
-  (defn apply-config
-    [{:keys [message messages] :as config}]
-    (assert (not (and message messages)))
-    (let [{:keys [model headers-fn url-fn body-params url]
-           :as config} config
-          url-fn (or url-fn (constantly url))
-          messages (or messages [message])]
-      (merge
-        config
-        {:url     (url-fn config)
-         :headers      (merge
-                         {"content-type" "application/json"}
-                         (headers-fn config))
-         :body (merge {:model model}
-                      (structure-content config
-                                         (for [m messages]
-                                           (message->content config m)))
-                      body-params)})))
+
+(defn apply-config
+  [{:keys [message messages] :as config}]
+  (assert (not (and message messages)))
+  (let [{:keys [model headers-fn url-fn body-params url]
+         :as   config} config
+        url-fn (or url-fn (constantly url))
+        messages (or messages [message])]
+    (merge
+      config
+      {:url     (url-fn config)
+       :headers (merge
+                  {"content-type" "application/json"}
+                  (headers-fn config))
+       :body    (merge {:model model}
+                       (structure-content config
+                                          (for [m messages]
+                                            (message->content config m)))
+                       body-params)})))
+(comment
   (apply-config
     (assoc
-      (make-config {:model :gemini-1.5-flash
+      (make-config {:model   :gemini-1.5-flash
                     :api-key "AIzaSyClvjs7oTP2DnZ32XbrthhSdBAalDEs4uc"})
 
       :message "Why is the sky blue?")
