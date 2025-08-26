@@ -1,8 +1,14 @@
 # Tjat
 
 A simple, fully browser-based LLM completion client featuring:
-- integration to multiple LLMs
+- integration to multiple providers and models
 - chat history via [InstantDB](https://instantdb.com) 
+
+## FAQ
+Q: Does this app steal my API keys?
+A: No, keys are stored loaclly, and only submitted to model providers
+Q: Can people read my chat history
+A: Only if they can guess your InstantDB app-id
 
 ## Pre-requisites
 
