@@ -296,16 +296,8 @@
                                                                                                   :text     v}}))
                                                                (.then js/console.log)))
 
-                                                         (swap! !state (fn [s]
-                                                                         (cond-> s
-                                                                                 ;; only select new response
-                                                                                 ;; if no existing response is selected
-                                                                                 (and (not (get (:selections @!state)
-                                                                                                selected-chat-id)))
-                                                                                 (assoc-in [:selections chat-id] response-id)
+                                                         (swap! !state update-in [:loading-chats chat-id] dec))
 
-                                                                                 true
-                                                                                 (update-in [:loading-chats chat-id] dec)))))
                                                        ;; local-only
                                                        (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
                                                                            (filter (fn [[_ id]]
@@ -319,11 +311,6 @@
                                                                                                                            (conj (or vs [])
                                                                                                                                  (assoc response
                                                                                                                                    :id response-id))) [])
-                                                                                 ;; only select new response
-                                                                                 ;; if no existing response is selected
-                                                                                 (and (not (get (:selections @!state)
-                                                                                                selected-chat-id)))
-                                                                                 (assoc-in [:selections chat-id] response-id)
                                                                                  true (update-in [:loading-chats chat-id] dec))))
                                                          100)))))
                                           (.catch (fn [e]
