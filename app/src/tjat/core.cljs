@@ -159,7 +159,7 @@
              :or   {models    (or
                                 (some->> (js/localStorage.getItem "tjat-models") clojure.edn/read-string)
                                 (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{})) ;; legacy
-                                (first all-models))
+                                #{(first all-models)})
                     api-keys  api-keys-persisted}} @!state
             loading (not (zero? (->> (for [[_ v] loading-chats]
                                        v)
