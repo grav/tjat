@@ -383,7 +383,7 @@
                                                                                                                              (conj (or vs [])
                                                                                                                                    (assoc response
                                                                                                                                      :id response-id))) [])
-                                                                                   true (update-in [:loading-chats chat-id] dec))))
+                                                                                   true (update-in [:loading-chats chat-id] dissoc response-id))))
                                                            100)))))
                                             (.catch (fn [e]
                                                       (js/alert
@@ -393,7 +393,7 @@
                                                                " from API (" (name model) ")")
                                                           :else
                                                           (str e)))
-                                                      (swap! !state update-in [:loading-chats chat-id] dec))))))))}
+                                                      (swap! !state update-in [:loading-chats chat-id] dissoc response-id))))))))}
 
 
             "submit"]
