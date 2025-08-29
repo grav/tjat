@@ -343,7 +343,7 @@
                                                             (assoc-in [:loading-chats chat-id response-id] model))))
                                         (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
                                                                file-values (when uploaded-files (vals uploaded-files))
-                                                               messages (concat [text] (or file-values []))]
+                                                               messages (concat ["Please use markdown for code." text] (or file-values []))]
                                                            {:messages messages
                                                             :model    model
                                                             :api-keys api-keys}))
