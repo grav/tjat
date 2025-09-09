@@ -20,6 +20,13 @@
 
 (defonce !state (r/atom nil))
 
+(def instantdb-subs
+  {:chats {#_#_:$ {:where
+                   {:or [{:hidden false}
+                         {:hidden {:$isNull true}}]}}
+           :responses {}}
+   :systemPrompts {}})
+
 (defn do-request! [{:keys [messages model api-keys]}]
   (-> (js/Promise.resolve nil)
       (.then (fn [_]
@@ -71,6 +78,19 @@
                                 (clj->js {:extensions [think-start
                                                        think-end]}))
                           (.setFlavor "github")) text)}}]]]))
+
+(defn system-prompt-tabs [{:keys [ids on-select selected-id system-prompts]}]
+  [:div {:style {:display :flex}}
+   (for [id ids
+         :let [selected-value (get-in system-prompts [id :value])]]
+     ^{:key id} [:div [:div
+                       {:style    {:padding 10}
+                        :on-click #(on-select id)}
+                       [:div {:style {:background-color (when (= selected-id id)
+                                                          :lightgray)
+                                      :font-weight (if (empty? selected-value)
+                                                     500 800)}}
+                        (name id)]]])])
 
 (defn response-tabs [{:keys     [selected-response-id loading-chats]
                       chat-id   :id
@@ -177,12 +197,18 @@
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
-            {:keys [text models api-keys loading-chats chats selected-chat-id]
+            {:keys [text models api-keys loading-chats chats selected-chat-id systemPrompts system-prompts selected-system-prompt]
              :or   {models    (or
                                 (some->> (js/localStorage.getItem "tjat-models") clojure.edn/read-string)
                                 (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{})) ;; legacy
                                 #{(first all-models)})
                     api-keys  api-keys-persisted}} @!state
+            system-prompts (if db
+                             (->> (for [{:keys [value model id]} systemPrompts]
+                                    [(keyword model) {:value        value
+                                                      :instantdb-id id}])
+                                  (into {}))
+                             system-prompts)
             loading (not (zero? (->> (for [[_ v] loading-chats]
                                        (count (keys v)))
                                      (apply +))))
@@ -236,7 +262,37 @@
              ^{:key (name p)}
              [:option {:id (name p)}
               (name p)])]
-          [:p
+
+          [:div
+           "System prompt:"
+           [:div {:style {:display :flex}}
+
+            [system-prompt-tabs {:ids models
+                                 :system-prompts    system-prompts
+                                 :selected-id       selected-system-prompt
+                                 :on-select         (fn [id]
+                                                      (let [v (if (not= id selected-system-prompt)
+                                                                id
+                                                                nil)]
+                                                        (swap! !state assoc :selected-system-prompt v)))}]]
+           (when (and selected-system-prompt
+                      (contains? (set models) selected-system-prompt))
+             [:div
+              [:textarea
+               {:style {:width "100%"}
+                :rows  10
+                :value (get-in system-prompts [selected-system-prompt :value])
+                :on-change
+                (fn [e]
+                  (if db
+                    (.transact db (let [new-prompt (aget (.-systemPrompts ^js/Object (.-tx db))
+                                                         (or (get-in system-prompts [selected-system-prompt :instantdb-id])
+                                                             (instantdb/id)))]
+                                    (-> new-prompt
+                                        (.update (clj->js {:model selected-system-prompt
+                                                           :value (.-value (.-target e))})))))
+                    (swap! !state assoc-in [:system-prompts selected-system-prompt :value] (.-value (.-target e)))))}]])
+           "Text:"
            [:textarea
             {:style {:width "100%"}
              :rows  10
@@ -256,7 +312,7 @@
                                               (fn [event]
                                                 (let [data-url (.-result (.-target event))
                                                       base64-data (second (clojure.string/split data-url #","))]
-                                                  (swap! !state assoc-in [:uploaded-files file-key] 
+                                                  (swap! !state assoc-in [:uploaded-files file-key]
                                                          {:file file
                                                           :base64 base64-data
                                                           :name (.-name file)
@@ -343,7 +399,9 @@
                                                             (assoc-in [:loading-chats chat-id response-id] model))))
                                         (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
                                                                file-values (when uploaded-files (vals uploaded-files))
-                                                               messages (concat [text] (or file-values []))]
+                                                               messages (->> (concat [(get-in system-prompts [model :value]) text]
+                                                                                     file-values)
+                                                                             (remove nil?))]
                                                            {:messages messages
                                                             :model    model
                                                             :api-keys api-keys}))
@@ -460,10 +518,7 @@
                                      (swap! !ref-state
                                             merge
                                             (db/init-instant-db {:app-id        instantdb-app-id-persisted
-                                                                 :subscriptions {:chats {#_#_:$ {:where
-                                                                                                 {:or [{:hidden false}
-                                                                                                       {:hidden {:$isNull true}}]}}
-                                                                                         :responses {}}}
+                                                                 :subscriptions instantdb-subs
                                                                  :!state        !state
                                                                  :on-error      instant-db-error-handler})))
                                    (when (and (seq algolia-app-id)
@@ -511,7 +566,7 @@
                                                                                 merge
                                                                                 (db/init-instant-db
                                                                                   {:app-id        s
-                                                                                   :subscriptions {:chats {:responses {}}}
+                                                                                   :subscriptions instantdb-subs
                                                                                    :!state        !state
                                                                                    :on-error      instant-db-error-handler}))
                                                                          (swap! !state assoc :instantdb-app-id s))
