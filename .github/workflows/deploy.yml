@@ -8,15 +8,14 @@ on:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
-    env:
-      S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
-      S3_BUCKET: ${{ secrets.S3_BUCKET }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
  
+      - name: check aws creds
+        run: |
+          aws s3api list-objects --endpoint-url "$S3_ENDPOINT_URL" --bucket "$S3_BUCKET" 
+          exit 42
 
       - name: Set up JDK
         uses: actions/setup-java@v4
@@ -41,6 +40,8 @@ jobs:
         env:
           S3_ENDPOINT_URL: ${{ secrets.S3_ENDPOINT_URL }}
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           chmod +x deploy.sh
           ./deploy.sh
