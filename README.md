@@ -74,3 +74,13 @@ Visit http://localhost:8000
 ### Deploying
 
 Check out the `deploy.sh` script.
+
+## CI / Deployment
+
+A GitHub Actions workflow is provided at `.github/workflows/deploy.yml` that builds the app and runs `deploy.sh` on pushes to `main` or when triggered manually.
+
+Required repository secrets:
+- `S3_ENDPOINT_URL`: The S3-compatible endpoint used by `aws` (for example an S3 gateway or AWS endpoint).
+- `S3_BUCKET`: The bucket to upload the release files to.
+
+The workflow installs the Clojure CLI and Node.js, runs `npm install` and `npx shadow-cljs release :app` via `deploy.sh`, then uploads built assets to S3.
