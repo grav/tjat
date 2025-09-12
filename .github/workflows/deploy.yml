@@ -32,7 +32,19 @@ jobs:
 
       - name: Install Clojure CLI
         run: |
-          curl -fsSL https://raw.githubusercontent.com/clojure/tools.deps/master/bin/install | bash
+          set -euo pipefail
+          URL="https://raw.githubusercontent.com/clojure/tools.deps/master/bin/install"
+          echo "Downloading Clojure CLI installer from $URL"
+          TMPFILE="/tmp/clojure-install.sh"
+          HTTP_STATUS=$(curl -sS -w "%{http_code}" -o "${TMPFILE}" "${URL}" || true)
+          if [ "${HTTP_STATUS}" != "200" ]; then
+            echo "ERROR: failed to download installer (HTTP ${HTTP_STATUS})"
+            echo "Installer content (first 200 chars):"
+            head -c 200 "${TMPFILE}" || true
+            exit 1
+          fi
+          chmod +x "${TMPFILE}"
+          /bin/bash "${TMPFILE}"
 
       - name: Install ImageMagick (for favicon)
         run: sudo apt-get update && sudo apt-get install -y imagemagick
