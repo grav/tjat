@@ -2,7 +2,7 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [ grav/deploy ]
+    branches: [ main ]
   workflow_dispatch: {}
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
