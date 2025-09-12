@@ -138,7 +138,7 @@
   (apply-config
     (merge
       (make-config {:model   :gpt-5
-                    :api-key "AIzaSyClvjs7oTP2DnZ32XbrthhSdBAalDEs4uc"})
+                    :api-key "fake-key-abcd"})
 
       {:messages ["what's in this image?"]})))
 
