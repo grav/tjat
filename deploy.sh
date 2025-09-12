@@ -13,7 +13,17 @@ npm i
 
 npx shadow-cljs release :app
 
-magick tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico 
+# Create favicon using ImageMagick. Prefer `magick` (ImageMagick 7+), fall back to `convert` (ImageMagick 6).
+if command -v magick >/dev/null 2>&1; then
+  echo "Using magick to create favicon"
+  magick tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico
+elif command -v convert >/dev/null 2>&1; then
+  echo "Using convert to create favicon"
+  convert tjat_logo.png -define icon:auto-resize=16,32,48,64,128,256 public/favicon.ico
+else
+  echo "ERROR: ImageMagick not found (magick/convert). Aborting deploy." >&2
+  exit 1
+fi
 
 aws s3api put-object \
     --endpoint-url "$S3_ENDPOINT_URL" \
