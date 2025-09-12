@@ -285,23 +285,30 @@
                                                                 id
                                                                 nil)]
                                                         (swap! !state assoc :selected-system-prompt v)))}]]
-           (when (and selected-system-prompt
-                      (contains? (set models) selected-system-prompt))
-             [:div
-              [:textarea
-               {:style {:width "100%"}
-                :rows  10
-                :value (get-in system-prompts [selected-system-prompt :value])
-                :on-change
-                (fn [e]
-                  (if db
-                    (.transact db (let [new-prompt (aget (.-systemPrompts ^js/Object (.-tx db))
-                                                         (or (get-in system-prompts [selected-system-prompt :instantdb-id])
-                                                             (instantdb/id)))]
-                                    (-> new-prompt
-                                        (.update (clj->js {:model selected-system-prompt
-                                                           :value (.-value (.-target e))})))))
-                    (swap! !state assoc-in [:system-prompts selected-system-prompt :value] (.-value (.-target e)))))}]])
+           [:div
+            [:textarea
+             {:id "foo"
+              :style (merge {:width "100%"
+                             :height 100
+                             :transition "max-height 0.3s ease-out"}
+                            (if (and selected-system-prompt
+                                     (contains? (set models) selected-system-prompt))
+                              {:max-height 100
+                               :overflow :hidden}
+
+                              {:max-height 0}))
+              :rows  10
+              :value (get-in system-prompts [selected-system-prompt :value])
+              :on-change
+              (fn [e]
+                (if db
+                  (.transact db (let [new-prompt (aget (.-systemPrompts ^js/Object (.-tx db))
+                                                       (or (get-in system-prompts [selected-system-prompt :instantdb-id])
+                                                           (instantdb/id)))]
+                                  (-> new-prompt
+                                      (.update (clj->js {:model selected-system-prompt
+                                                         :value (.-value (.-target e))})))))
+                  (swap! !state assoc-in [:system-prompts selected-system-prompt :value] (.-value (.-target e)))))}]]
            "Text:"
            [:textarea
             {:style {:width "100%"}
