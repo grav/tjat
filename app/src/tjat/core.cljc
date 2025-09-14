@@ -2,6 +2,7 @@
   (:require ["react-dom/client" :as react-dom]
             [allem.util :as util]
             [allem.platform :as platform]
+            [clojure.string :as str]
             [reagent.core :as r]
             [goog.dom :as gdom]
             [allem.core]
@@ -14,7 +15,9 @@
             ["@instantdb/core" :as instantdb]
             ["algoliasearch" :as algolia]
             [clojure.edn]
-            [clojure.string]))
+            [clojure.string]
+            ["aws-sdk" :as aws]))
+
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -73,7 +76,8 @@
                                               think-end]}))
                  (.setFlavor "github")) text)}}])
 
-(defn response-view [{:keys [request-time id text system-prompt] :as x}]
+(defn response-view [{{:keys [request-time id text system-prompt files]} :response
+                      :keys [on-add-file]}]
   (when id
     [:div
      [:div [:i (some-> request-time
@@ -85,6 +89,21 @@
               [:details
                [:summary [:i "System prompt"] " \uD83E\uDD16"]
                [:i [markdown-view system-prompt]]]]])
+     (when (not-empty files)
+       [:div [:small
+              [:details
+               [:summary [:i "Files"] " \uD83D\uDCC1"]
+               (for [[k {nme :name :as f}] files]
+                 ^{:key (name k)} [:div
+                                   nme
+                                   (when on-add-file
+                                     [:a {:style {:margin 5}
+                                          :href  "#" :on-click (fn [e]
+                                                                 (.preventDefault e)
+                                                                 (on-add-file f))}
+
+                                      "Add"])])]]])
+
      [:div [markdown-view text]]]))
 
 (defn system-prompt-tabs [{:keys [ids on-select selected-id system-prompts]}]
@@ -115,7 +134,8 @@
                                 (name model)]]])
            (for [[i model] (->> (vals loading-chats)
                                 (map vector (range)))]
-             [:div ^{:key i}
+             ^{:key i}
+             [:div
               [:div
                {:style {:padding 10}}
                [:div {:style {:color :lightgray}}
@@ -124,11 +144,11 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections loading-chats]
+    (fn [{:keys [chats selected-chat-id selections loading-chats s3-configured?]
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
-         {:keys [on-chat-select on-chat-toggle-hidden]
+         {:keys [on-chat-select on-chat-toggle-hidden on-add-file]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
             {:keys [hover timer resting show-hidden]} @!state
@@ -185,8 +205,7 @@
                                         :on-click (fn [e]
                                                     (.stopPropagation e)
                                                     (on-chat-toggle-hidden id (not hidden)))}
-                                  (if hidden "+" "˟")])]
-                              (when (= selected-chat-id id))])]
+                                  (if hidden "+" "˟")])]])]
           [:div {:style {:display (when (and hidden
                                              (not show-hidden))
                                     :none)
@@ -197,8 +216,10 @@
            [:hr]
            (when (or (nil? search-results)
                      (search-response-ids selected-response-id))
-             [response-view (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
-                                (first responses))])]]]))))
+             [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+                                           (first responses))
+                             :s3-configured? s3-configured?
+                             :on-add-file on-add-file}])]]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
@@ -207,7 +228,8 @@
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
-            {:keys [text models api-keys loading-chats chats selected-chat-id systemPrompts system-prompts selected-system-prompt]
+            {:keys [text models api-keys loading-chats chats selected-chat-id systemPrompts
+                      system-prompts selected-system-prompt s3 uploaded-files]
              :or   {models    (or
                                 (some->> (js/localStorage.getItem "tjat-models") clojure.edn/read-string)
                                 (some->> (js/localStorage.getItem "tjat-model") keyword (conj #{})) ;; legacy
@@ -222,14 +244,20 @@
             loading (not (zero? (->> (for [[_ v] loading-chats]
                                        (count (keys v)))
                                      (apply +))))
-            selected-chat (->> chats
-                               (filter (comp #{selected-chat-id} :id))
-                               util/single)]
+            s3-configured? (let [{:keys [access-key-id secret-access-key bucket]} s3]
+                             (and access-key-id secret-access-key bucket))]
+
         [:div
          #?(:dev-config
             [:div
              [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats :uploaded-files))]])
+             [:pre 's3? (str " " (some? s3-configured?))]
+             [:pre (util/spprint (-> (dissoc @!state :_chats)
+                                     (update :uploaded-files
+                                             (fn [files]
+                                               (->> (for [[k v] files]
+                                                      [k (dissoc v :base64)])
+                                                    (into {}))))))]])
          [:div
           [:details #?(:dev-config {:open true})
            [:summary "API keys"]
@@ -320,21 +348,90 @@
           [:div
            [:label "Upload files: "]
            (let [drag-over? (r/atom false)
-                 handle-files (fn [files]
-                                (doseq [file files]
-                                  (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
+                 upload-s3 (fn [files]
+                             (doseq [file files]
+                               (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
                                     (when-not (get-in @!state [:uploaded-files file-key])
-                                      (let [reader (js/FileReader.)]
+                                      (let [reader (js/FileReader.)
+                                            {:keys [endpoint bucket access-key-id secret-access-key]} s3]
                                         (set! (.-onload reader)
                                               (fn [event]
                                                 (let [data-url (.-result (.-target event))
-                                                      base64-data (second (clojure.string/split data-url #","))]
+                                                      base64-data (second (clojure.string/split data-url #","))
+                                                      file-type (.-type file)
+                                                      s3-client (when s3-configured?
+                                                                  (aws/S3. #js{:accessKeyId      access-key-id
+                                                                               :secretAccessKey  secret-access-key
+                                                                               :endpoint         endpoint
+                                                                               :signatureVersion "v4"}))]
+                                                  (when s3-client
+                                                    (-> (.arrayBuffer file)
+                                                        (.then (fn [buffer]
+                                                                 (.digest js/crypto.subtle "SHA-256" buffer)))
+                                                        (.then (fn [buffer]
+                                                                 (->> (js/Array.from (js/Uint8Array. buffer))
+                                                                      (map (fn [b] (.padStart (.toString b 16) 2 "0")))
+                                                                      (str/join))))
+                                                        (.then (fn [file-hash]
+                                                                 (swap! !state update-in [:uploaded-files file-key]
+                                                                        (fn [f]
+                                                                          (assoc f :file-hash file-hash
+                                                                                   :cache-status :checking)))
+                                                                 ;; check if file already exists
+                                                                 (-> (.getSignedUrlPromise s3-client
+                                                                                           "headObject"
+                                                                                           #js {:Bucket  bucket
+                                                                                                :Key     file-hash
+                                                                                                :Expires 300})
+                                                                     (.then (fn [url]
+                                                                              {:file-hash file-hash
+                                                                               :signed-url url})))))
+                                                        (.then (fn [{:keys [signed-url] :as res}]
+                                                                 (-> (js/fetch signed-url #js{:method "HEAD"})
+                                                                     (.then (fn [r]
+                                                                              (assoc res
+                                                                                :response r))))))
+                                                        (.then (fn [{:keys [response file-hash]}]
+                                                                 (let [status (.-status response)]
+
+                                                                   (cond (= 404 status)
+                                                                         (do
+                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                  :caching)
+                                                                           (js/console.log (str "caching file " file-hash "..."))
+                                                                           (-> (.getSignedUrlPromise s3-client
+                                                                                                     "putObject"
+                                                                                                     #js {:Bucket      bucket
+                                                                                                          :Key         file-hash
+                                                                                                          :ContentType file-type
+                                                                                                          :Expires     300})
+                                                                               (.then (fn [signed-url]
+                                                                                        (js/fetch signed-url
+                                                                                                  #js {:method  "PUT"
+                                                                                                       :headers #js {"Content-Type" file-type}
+                                                                                                       :body    file})))
+                                                                               (.then (fn [_]
+                                                                                        (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                               :cached)
+                                                                                        (js/console.log "done")))))
+
+                                                                         (= 200 status)
+                                                                         (do
+                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                  :cached)
+                                                                           (js/console.log (str "file " file-hash " already cached")))
+
+                                                                         :else
+                                                                         (throw (ex-info "Error checking cache" {:status status}))))))))
+
+
                                                   (swap! !state assoc-in [:uploaded-files file-key]
-                                                         {:file file
+                                                         {:file   file
                                                           :base64 base64-data
-                                                          :name (.-name file)
-                                                          :type (.-type file)}))))
+                                                          :name   (.-name file)
+                                                          :type   (.-type file)}))))
                                         (.readAsDataURL reader file))))))]
+
              [:div {:style {:border (if @drag-over? "2px dashed #007cba" "2px dashed #ccc")
                             :padding "20px"
                             :text-align "center"
@@ -347,7 +444,7 @@
                                   (set! (.-type input) "file")
                                   (set! (.-multiple input) true)
                                   (set! (.-onchange input) (fn [e]
-                                                             (handle-files (array-seq (.-files (.-target e))))))
+                                                             (upload-s3 (array-seq (.-files (.-target e))))))
                                   (.click input)))
                     :on-drag-over (fn [e]
                                     (.preventDefault e)
@@ -361,27 +458,64 @@
                                (.preventDefault e)
                                (.stopPropagation e)
                                (reset! drag-over? false)
-                               (handle-files (array-seq (.-files (.-dataTransfer e)))))}
+                               (upload-s3 (array-seq (.-files (.-dataTransfer e)))))}
               [:p {:style {:margin "0"}}
                (if @drag-over?
                  "Drop files here"
                  "Click to select files or drag and drop them here")]])]
-          (when-let [uploaded-files (:uploaded-files @!state)]
-            (when (seq uploaded-files)
-              [:div
-               [:p (str "Uploaded " (count uploaded-files) " file(s):")]
-               (for [[file-key {:keys [name type]}] uploaded-files]
-                 ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " name " (" type ")")])
-               [:button {:on-click #(swap! !state dissoc :uploaded-files)
-                         :style {:margin-left 10}}
-                "Clear All"]]))
+          (when (seq uploaded-files)
+            [:div
+             [:p (str "Uploaded " (count uploaded-files) " file(s):")]
+             (for [[file-key {:keys [type file-hash cache-status]
+                              nme :name}] uploaded-files]
+               ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " nme " (" type ")")
+                                 (when s3-configured?
+                                   (cond
+                                     (#{:checking :caching}  cache-status)
+                                     [ui/spinner]
+
+                                     (= cache-status :cached)
+                                     [:a {:style {:margin-left 5}
+                                          :href "#"
+                                          :on-click (fn [e]
+                                                      (.preventDefault e)
+                                                      (let [{{:keys [endpoint bucket access-key-id secret-access-key]} :s3} @!state
+                                                            s3-client (aws/S3. #js{:accessKeyId      access-key-id
+                                                                                   :secretAccessKey  secret-access-key
+                                                                                   :endpoint         endpoint
+                                                                                   :signatureVersion "v4"})]
+                                                        (-> (.getSignedUrlPromise s3-client
+                                                                                  "getObject"
+                                                                                  #js {:Bucket  bucket
+                                                                                       :Key     file-hash
+                                                                                       :Expires 300})
+                                                            (.then (fn [url]
+                                                                     (js/window.open url "_blank"))))))}
+                                      "cached"]))])
+
+
+
+             [:button {:on-click #(swap! !state dissoc :uploaded-files)
+                       :style    {:margin-left 10}}
+              "Clear All"]])
           [:p
            {:style {:height 50}}
            [:button {:disabled (or (empty? text)
-                                   (empty? models))
+                                   (empty? models)
+                                   (some nil?
+                                         (->> (vals uploaded-files)
+                                              (map :file-hash))))
                      :on-click #(do
 
-                                  (let [chat-id (if (not= text (:text selected-chat))
+                                  (let [selected-chat (->> chats
+                                                           (filter (comp #{selected-chat-id} :id))
+                                                           util/single
+                                                           :text)
+                                        uploaded-files-meta (->> (for [[k v] uploaded-files]
+                                                                   [k (dissoc v :file :base64)])
+                                                                 (into {})
+                                                                 not-empty)
+                                        chat-id (if (not= text selected-chat)
                                                   (if db
                                                     (let [chat-id (instantdb/id)
                                                           tx (.-tx db)
@@ -411,14 +545,14 @@
                                                               (instantdb/id))
                                                             (str (random-uuid)))
                                             system-prompt (-> (get-in system-prompts [model :value])
-                                                              not-empty)]
+                                                              not-empty)
+                                            uploaded-files (:uploaded-files @!state)
+                                            file-values (when uploaded-files (vals uploaded-files))]
                                         (swap! !state (fn [s]
                                                         (-> s
                                                             (assoc :selected-chat-id chat-id)
                                                             (assoc-in [:loading-chats chat-id response-id] model))))
-                                        (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
-                                                               file-values (when uploaded-files (vals uploaded-files))
-                                                               messages (->> (concat [system-prompt text]
+                                        (-> (do-request! (let [messages (->> (concat [system-prompt text]
                                                                                      file-values)
                                                                              (remove nil?))]
                                                            {:messages messages
@@ -431,7 +565,8 @@
                                                                      :model         (name model)
                                                                      :system-prompt system-prompt
                                                                      :request-time  start-time
-                                                                     :response-time end-time}]
+                                                                     :response-time end-time
+                                                                     :files         (clj->js uploaded-files-meta)}]
                                                        (if db
                                                          (do
                                                            (.transact db (let [new-response (aget (.-responses ^js/Object (.-tx db)) response-id)]
@@ -491,15 +626,19 @@
                                                  (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
                                                           #js{:hidden hidden})))
              :on-chat-select        (fn [selected-chat-id]
-                                      (swap! !state assoc
-                                             :selected-chat-id selected-chat-id
-                                             ;; TODO - this might be a bit aggressive ...
-                                             :text (->> chats
-                                                        (filter (comp #{selected-chat-id} :id))
-                                                        util/single
-                                                        :text)))
+                                      (let [{:keys [files text]} (->> chats
+                                                                      (filter (comp #{selected-chat-id} :id))
+                                                                      util/single)]
+                                        (swap! !state assoc
+                                               :selected-chat-id selected-chat-id
+                                               :text text)))
              :on-response-select    (fn [[selected-chat-id id]]
-                                      (swap! !state assoc-in [:selections selected-chat-id] id))}]]]]))))
+                                      (swap! !state assoc-in [:selections selected-chat-id] id))
+             :on-add-file (when s3-configured?
+                            (fn [f]
+                              (println f)
+                              (js/alert "TODO - fetch cached file")))}]]]]))))
+
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
@@ -551,13 +690,18 @@
                                    (swap! !state assoc
                                           :instantdb-app-id instantdb-app-id-persisted
                                           :algolia {:app-id  algolia-app-id
-                                                    :api-key algolia-api-key})))
+                                                    :api-key algolia-api-key}
+                                          :s3 {:endpoint (js/localStorage.getItem "s3-endpoint")
+                                               :bucket (js/localStorage.getItem "s3-bucket")
+                                               :access-key-id (js/localStorage.getItem "s3-access-key-id")
+                                               :secret-access-key (js/localStorage.getItem "s3-secret-access-key")})))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
                                      (unsubscribe))))
        :reagent-render         (fn []
-                                 (let [{:keys                      [instantdb-app-id]
+                                 (let [{:keys
+                                        [instantdb-app-id s3]
                                         {algolia-app-id  :app-id
                                          algolia-api-key :api-key} :algolia} @!state
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
@@ -645,7 +789,32 @@
                                                 :disabled (or (empty? algolia-api-key)
                                                               (empty? algolia-app-id))}
 
-                                       "Import to Algolia"]]]
+                                       "Import to Algolia"]]
+                                     [:div
+                                      (for [{:keys [title key secret?]} [{:title   "S3 endpoint"
+                                                                          :key     :endpoint
+                                                                          :secret? false}
+                                                                         {:title "S3 bucket"
+                                                                          :key :bucket
+                                                                          :secret? false}
+                                                                         {:title "S3 access key ID"
+                                                                          :key :access-key-id
+                                                                          :secret? false}
+                                                                         {:title "S3 secret access key"
+                                                                          :key :secret-access-key
+                                                                          :secret? true}]]
+                                        ^{:key (str "s3-" (name key))}
+                                         [:div {:style {:display :flex}} (str title ": ")
+                                          [ui/edit-field {:secret? secret?
+                                                          :on-save (fn [s]
+                                                                     (if (seq s)
+                                                                       (do
+                                                                         (js/localStorage.setItem (str "s3-" (name key)) s)
+                                                                         (swap! !state assoc-in [:s3 key] s))
+                                                                       (do
+                                                                         (js/localStorage.removeItem (str "s3-" (name key)))
+                                                                         (swap! !state update :s3 dissoc key))))
+                                                          :value   (get s3 key)}]])]]
                                     [app {:db             db
                                           :algolia-client algolia-client}
                                      !state]]))})))
