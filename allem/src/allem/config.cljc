@@ -60,7 +60,8 @@
                  :image_url
                  {:url (platform/format' "data:%s;base64,%s"
                                  mime-type
-                                 base64-data)}})}})
+                                 base64-data)}})}
+   :randomllm {:image-fn (fn [& _args])}})
 
 (defn normalize-config [c]
   (merge
