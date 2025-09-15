@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Clojure tools (CLI + helpers)
+        uses: DeLaGuardo/setup-clojure@13.4
+        with:
+          cli: latest
+
+      - name: Build
+        run: |
+          pushd app
+          npm i  
+          npx shadow-cljs release :app
