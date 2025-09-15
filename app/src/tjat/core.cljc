@@ -77,6 +77,21 @@
                                               think-end]}))
                  (.setFlavor "github")) text)}}])
 
+(defn add-file-button []
+  (let [!is-adding (r/atom nil)]
+    (fn [{:keys [on-add-file file]}]
+      (if @!is-adding
+        [ui/spinner]
+        [:a {:style {:margin 5}
+             :href  "#" :on-click (fn [e]
+                                    (.preventDefault e)
+                                    (reset! !is-adding true)
+                                    (-> (on-add-file file)
+                                        (.catch #(js/alert (ex-message %)))
+                                        (.finally #(reset! !is-adding false))))}
+
+         "Add"]))))
+
 (defn response-view [{{:keys [request-time id text system-prompt files]} :response
                       :keys [on-add-file]}]
   (when id
@@ -100,12 +115,10 @@
                                    nme
                                    (when (and on-add-file
                                               file-hash)
-                                     [:a {:style {:margin 5}
-                                          :href  "#" :on-click (fn [e]
-                                                                 (.preventDefault e)
-                                                                 (on-add-file f))}
+                                     [add-file-button
+                                      {:on-add-file on-add-file
+                                       :file f}])])]]])
 
-                                      "Add"])])]]])
 
      [:div [markdown-view text]]]))
 
@@ -638,13 +651,25 @@
              :on-response-select    (fn [[selected-chat-id id]]
                                       (swap! !state assoc-in [:selections selected-chat-id] id))
              :on-add-file (when s3-configured?
-                            (fn [f]
-                              (println f)
+                            (fn [{nme :name
+                                  :as f}]
                               (-> (s3/get-file+ s3 f)
                                   (.then (fn [response]
-                                           (if response
-                                             (js/console.log response)
-                                             (js/alert "File isn't cached!")))))))}]]]]))))
+                                           (.blob response)))
+                                  (.then (fn [blob]
+                                           (let [reader (js/FileReader.)
+                                                 p (js/Promise.
+                                                     (fn [resolve _reject]
+                                                       (set! (.-onload reader)
+                                                             (fn [_]
+                                                               (let [data-url (.-result reader)
+                                                                     base64-data (second (clojure.string/split data-url #","))]
+                                                                 (resolve base64-data))))))]
+                                             (.readAsDataURL reader blob)
+                                             p)))
+                                  (.then (fn [base64-data]
+                                           (swap! !state update :uploaded-files
+                                                  merge {nme (assoc f :base64 base64-data)}))))))}]]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]

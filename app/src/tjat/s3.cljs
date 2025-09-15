@@ -25,7 +25,7 @@
                      response
 
                      (= 404 status)
-                     nil
+                     (throw (ex-info "File is not cached" {:status status}))
 
                      :else
                      (throw (ex-info "Error getting file from cache" {:status status})))))))))
