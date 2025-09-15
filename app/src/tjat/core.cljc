@@ -16,7 +16,8 @@
             ["algoliasearch" :as algolia]
             [clojure.edn]
             [clojure.string]
-            ["aws-sdk" :as aws]))
+            ["aws-sdk" :as aws]
+            [tjat.s3 :as s3]))
 
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
@@ -93,10 +94,12 @@
        [:div [:small
               [:details
                [:summary [:i "Files"] " \uD83D\uDCC1"]
-               (for [[k {nme :name :as f}] files]
+               (for [[k {nme :name :as f
+                         file-hash :file-hash}] files]
                  ^{:key (name k)} [:div
                                    nme
-                                   (when on-add-file
+                                   (when (and on-add-file
+                                              file-hash)
                                      [:a {:style {:margin 5}
                                           :href  "#" :on-click (fn [e]
                                                                  (.preventDefault e)
@@ -144,7 +147,7 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections loading-chats s3-configured?]
+    (fn [{:keys [chats selected-chat-id selections loading-chats]
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
@@ -218,7 +221,6 @@
                      (search-response-ids selected-response-id))
              [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
-                             :s3-configured? s3-configured?
                              :on-add-file on-add-file}])]]]))))
 
 (defn app []
@@ -620,7 +622,8 @@
                :on-search      (fn [res]
                                  (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
-           [chat-menu @!state
+           [chat-menu (assoc @!state
+                        :s3-configured? s3-configured?)
             {:on-chat-toggle-hidden (fn [chat-id hidden]
                                       (.transact db
                                                  (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
@@ -637,8 +640,11 @@
              :on-add-file (when s3-configured?
                             (fn [f]
                               (println f)
-                              (js/alert "TODO - fetch cached file")))}]]]]))))
-
+                              (-> (s3/get-file+ s3 f)
+                                  (.then (fn [response]
+                                           (if response
+                                             (js/console.log response)
+                                             (js/alert "File isn't cached!")))))))}]]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
