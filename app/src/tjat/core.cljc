@@ -92,8 +92,19 @@
 
          "Add"]))))
 
+(defn open-file-button [{:keys [title on-open-file file]}]
+  [:a {:style {:margin-left 5}
+       :href "#"
+       :on-click (fn [e]
+                   (.preventDefault e)
+                   (-> (on-open-file file)
+                       (.then (fn [url]
+                                (js/window.open url "_blank")))))}
+
+   (or title "Open")])
+
 (defn response-view [{{:keys [request-time id text system-prompt files]} :response
-                      :keys [on-add-file]}]
+                      :keys [on-add-file on-open-file]}]
   (when id
     [:div
      [:div [:i (some-> request-time
@@ -111,13 +122,17 @@
                [:summary [:i "Files"] " \uD83D\uDCC1"]
                (for [[k {nme :name :as f
                          file-hash :file-hash}] files]
-                 ^{:key (name k)} [:div
+                 ^{:key (name k)} [:div {:style {:display :flex}}
                                    nme
                                    (when (and on-add-file
                                               file-hash)
-                                     [add-file-button
-                                      {:on-add-file on-add-file
-                                       :file f}])])]]])
+                                     [:div
+                                      [add-file-button
+                                       {:on-add-file on-add-file
+                                        :file f}]
+                                      [open-file-button
+                                       {:on-open-file on-open-file
+                                        :file f}]])])]]])
 
 
      [:div [markdown-view text]]]))
@@ -164,7 +179,7 @@
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
-         {:keys [on-chat-select on-chat-toggle-hidden on-add-file]
+         {:keys [on-chat-select on-chat-toggle-hidden on-add-file on-open-file]
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
             {:keys [hover timer resting show-hidden]} @!state
@@ -234,7 +249,8 @@
                      (search-response-ids selected-response-id))
              [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
-                             :on-add-file on-add-file}])]]]))))
+                             :on-add-file on-add-file
+                             :on-open-file on-open-file}])]]]))))
 
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
@@ -481,7 +497,8 @@
           (when (seq uploaded-files)
             [:div
              [:p (str "Uploaded " (count uploaded-files) " file(s):")]
-             (for [[file-key {:keys [type file-hash cache-status]
+             (for [[file-key {:keys [type cache-status]
+                              :as f
                               nme :name}] uploaded-files]
                ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " nme " (" type ")")
                                  (when s3-configured?
@@ -490,23 +507,9 @@
                                      [ui/spinner]
 
                                      (= cache-status :cached)
-                                     [:a {:style {:margin-left 5}
-                                          :href "#"
-                                          :on-click (fn [e]
-                                                      (.preventDefault e)
-                                                      (let [{{:keys [endpoint bucket access-key-id secret-access-key]} :s3} @!state
-                                                            s3-client (aws/S3. #js{:accessKeyId      access-key-id
-                                                                                   :secretAccessKey  secret-access-key
-                                                                                   :endpoint         endpoint
-                                                                                   :signatureVersion "v4"})]
-                                                        (-> (.getSignedUrlPromise s3-client
-                                                                                  "getObject"
-                                                                                  #js {:Bucket  bucket
-                                                                                       :Key     file-hash
-                                                                                       :Expires 300})
-                                                            (.then (fn [url]
-                                                                     (js/window.open url "_blank"))))))}
-                                      "cached"]))])
+                                     [open-file-button {:on-open-file (partial s3/get-file-open-url+ s3 f)
+                                                        :file         f
+                                                        :title        "Cached - Open"}]))])
 
 
 
@@ -669,7 +672,8 @@
                                              p)))
                                   (.then (fn [base64-data]
                                            (swap! !state update :uploaded-files
-                                                  merge {nme (assoc f :base64 base64-data)}))))))}]]]]))))
+                                                  merge {nme (assoc f :base64 base64-data)}))))))
+             :on-open-file (partial s3/get-file-open-url+ s3)}]]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]

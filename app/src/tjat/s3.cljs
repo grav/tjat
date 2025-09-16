@@ -31,7 +31,15 @@
                      (throw (ex-info "Error getting file from cache" {:status status})))))))))
 
 
-
+(defn get-file-open-url+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
+  (let [s3-client (create-client s3)]
+    (-> (js/Promise.resolve)
+        (.then (fn []
+                 (.getSignedUrlPromise s3-client
+                                       "getObject"
+                                       #js {:Bucket  bucket
+                                            :Key     file-hash
+                                            :Expires 300}))))))
 
 (defn file-exists+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
   (let [s3-client (create-client s3)]
