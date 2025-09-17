@@ -16,8 +16,9 @@
             ["algoliasearch" :as algolia]
             [clojure.edn]
             [clojure.string]
-            ["aws-sdk" :as aws]
-            [tjat.s3 :as s3]))
+            #_["@aws-sdk/client-s3" :as aws]
+            #_["aws-sdk" :as aws]
+            #_[tjat.s3 :as s3]))
 
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
@@ -390,70 +391,70 @@
                                                 (let [data-url (.-result (.-target event))
                                                       base64-data (second (clojure.string/split data-url #","))
                                                       file-type (.-type file)
-                                                      s3-client (when s3-configured?
-                                                                  (aws/S3. #js{:accessKeyId      access-key-id
-                                                                               :secretAccessKey  secret-access-key
-                                                                               :endpoint         endpoint
-                                                                               :signatureVersion "v4"}))]
-                                                  (when s3-client
-                                                    (-> (.arrayBuffer file)
-                                                        (.then (fn [buffer]
-                                                                 (.digest js/crypto.subtle "SHA-256" buffer)))
-                                                        (.then (fn [buffer]
-                                                                 (->> (js/Array.from (js/Uint8Array. buffer))
-                                                                      (map (fn [b] (.padStart (.toString b 16) 2 "0")))
-                                                                      (str/join))))
-                                                        (.then (fn [file-hash]
-                                                                 (swap! !state update-in [:uploaded-files file-key]
-                                                                        (fn [f]
-                                                                          (assoc f :file-hash file-hash
-                                                                                   :cache-status :checking)))
-                                                                 ;; check if file already exists
-                                                                 (-> (.getSignedUrlPromise s3-client
-                                                                                           "headObject"
-                                                                                           #js {:Bucket  bucket
-                                                                                                :Key     file-hash
-                                                                                                :Expires 300})
-                                                                     (.then (fn [url]
-                                                                              {:file-hash file-hash
-                                                                               :signed-url url})))))
-                                                        (.then (fn [{:keys [signed-url] :as res}]
-                                                                 (-> (js/fetch signed-url #js{:method "HEAD"})
-                                                                     (.then (fn [r]
-                                                                              (assoc res
-                                                                                :response r))))))
-                                                        (.then (fn [{:keys [response file-hash]}]
-                                                                 (let [status (.-status response)]
+                                                      s3-client nil #_(when s3-configured?
+                                                                        (aws/S3. #js{:accessKeyId      access-key-id
+                                                                                     :secretAccessKey  secret-access-key
+                                                                                     :endpoint         endpoint
+                                                                                     :signatureVersion "v4"}))]
+                                                  #_(when s3-client
+                                                      (-> (.arrayBuffer file)
+                                                          (.then (fn [buffer]
+                                                                   (.digest js/crypto.subtle "SHA-256" buffer)))
+                                                          (.then (fn [buffer]
+                                                                   (->> (js/Array.from (js/Uint8Array. buffer))
+                                                                        (map (fn [b] (.padStart (.toString b 16) 2 "0")))
+                                                                        (str/join))))
+                                                          (.then (fn [file-hash]
+                                                                   (swap! !state update-in [:uploaded-files file-key]
+                                                                          (fn [f]
+                                                                            (assoc f :file-hash file-hash
+                                                                                     :cache-status :checking)))
+                                                                   ;; check if file already exists
+                                                                   (-> (.getSignedUrlPromise s3-client
+                                                                                             "headObject"
+                                                                                             #js {:Bucket  bucket
+                                                                                                  :Key     file-hash
+                                                                                                  :Expires 300})
+                                                                       (.then (fn [url]
+                                                                                {:file-hash file-hash
+                                                                                 :signed-url url})))))
+                                                          (.then (fn [{:keys [signed-url] :as res}]
+                                                                   (-> (js/fetch signed-url #js{:method "HEAD"})
+                                                                       (.then (fn [r]
+                                                                                (assoc res
+                                                                                  :response r))))))
+                                                          (.then (fn [{:keys [response file-hash]}]
+                                                                   (let [status (.-status response)]
 
-                                                                   (cond (= 404 status)
-                                                                         (do
-                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                  :caching)
-                                                                           (js/console.log (str "caching file " file-hash "..."))
-                                                                           (-> (.getSignedUrlPromise s3-client
-                                                                                                     "putObject"
-                                                                                                     #js {:Bucket      bucket
-                                                                                                          :Key         file-hash
-                                                                                                          :ContentType file-type
-                                                                                                          :Expires     300})
-                                                                               (.then (fn [signed-url]
-                                                                                        (js/fetch signed-url
-                                                                                                  #js {:method  "PUT"
-                                                                                                       :headers #js {"Content-Type" file-type}
-                                                                                                       :body    file})))
-                                                                               (.then (fn [_]
-                                                                                        (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                               :cached)
-                                                                                        (js/console.log "done")))))
+                                                                     (cond (= 404 status)
+                                                                           (do
+                                                                             (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                    :caching)
+                                                                             (js/console.log (str "caching file " file-hash "..."))
+                                                                             (-> (.getSignedUrlPromise s3-client
+                                                                                                       "putObject"
+                                                                                                       #js {:Bucket      bucket
+                                                                                                            :Key         file-hash
+                                                                                                            :ContentType file-type
+                                                                                                            :Expires     300})
+                                                                                 (.then (fn [signed-url]
+                                                                                          (js/fetch signed-url
+                                                                                                    #js {:method  "PUT"
+                                                                                                         :headers #js {"Content-Type" file-type}
+                                                                                                         :body    file})))
+                                                                                 (.then (fn [_]
+                                                                                          (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                                 :cached)
+                                                                                          (js/console.log "done")))))
 
-                                                                         (= 200 status)
-                                                                         (do
-                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                  :cached)
-                                                                           (js/console.log (str "file " file-hash " already cached")))
+                                                                           (= 200 status)
+                                                                           (do
+                                                                             (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                                    :cached)
+                                                                             (js/console.log (str "file " file-hash " already cached")))
 
-                                                                         :else
-                                                                         (throw (ex-info "Error checking cache" {:status status}))))))))
+                                                                           :else
+                                                                           (throw (ex-info "Error checking cache" {:status status}))))))))
 
 
                                                   (swap! !state assoc-in [:uploaded-files file-key]
@@ -531,7 +532,7 @@
                                      [ui/spinner]
 
                                      (= cache-status :cached)
-                                     [open-file-button {:on-open-file (partial s3/get-file-open-url+ s3 f)
+                                     [open-file-button {:on-open-file nil #_(partial s3/get-file-open-url+ s3 f)
                                                         :file         f
                                                         :title        "Cached - Open"}]))])
 
@@ -680,24 +681,24 @@
              :on-add-file (when s3-configured?
                             (fn [{nme :name
                                   :as f}]
-                              (-> (s3/get-file+ s3 f)
-                                  (.then (fn [response]
-                                           (.blob response)))
-                                  (.then (fn [blob]
-                                           (let [reader (js/FileReader.)
-                                                 p (js/Promise.
-                                                     (fn [resolve _reject]
-                                                       (set! (.-onload reader)
-                                                             (fn [_]
-                                                               (let [data-url (.-result reader)
-                                                                     base64-data (second (clojure.string/split data-url #","))]
-                                                                 (resolve base64-data))))))]
-                                             (.readAsDataURL reader blob)
-                                             p)))
-                                  (.then (fn [base64-data]
-                                           (swap! !state update :uploaded-files
-                                                  merge {nme (assoc f :base64 base64-data)}))))))
-             :on-open-file (partial s3/get-file-open-url+ s3)}]]]]))))
+                              #_(-> (s3/get-file+ s3 f)
+                                    (.then (fn [response]
+                                             (.blob response)))
+                                    (.then (fn [blob]
+                                             (let [reader (js/FileReader.)
+                                                   p (js/Promise.
+                                                       (fn [resolve _reject]
+                                                         (set! (.-onload reader)
+                                                               (fn [_]
+                                                                 (let [data-url (.-result reader)
+                                                                       base64-data (second (clojure.string/split data-url #","))]
+                                                                   (resolve base64-data))))))]
+                                               (.readAsDataURL reader blob)
+                                               p)))
+                                    (.then (fn [base64-data]
+                                             (swap! !state update :uploaded-files
+                                                    merge {nme (assoc f :base64 base64-data)}))))))
+             :on-open-file nil #_(partial s3/get-file-open-url+ s3)}]]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
