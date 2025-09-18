@@ -1,0 +1,33 @@
+name: Trivy Package Lock Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
+  push:
+    branches: [ grav/trivy-scan ]
+  workflow_dispatch:
+
+# Only proceed on main branch (schedule already runs on default branch, this also gates manual runs)
+permissions:
+  contents: read
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Trivy scan (table output)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: fs
+          # We scan the app directory so Trivy can detect the Node project and parse package-lock.json
+          path: app
+          scanners: vuln
+          vuln-type: os,library
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: 1 # Fail the job if HIGH/CRITICAL vulns are found
