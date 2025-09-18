@@ -6,6 +6,5 @@
                 :release {:output-dir "public-release/js"}
                 :dev {:compiler-options
                       {:reader-features #{:dev-config}}}
-                :js-options {:entry-keys ["module" "browser" "main"]
-                             :export-conditions ["module" "import" "browser" "require" "default"]}}}
+                :js-options {:entry-keys ["module" "browser" "main"]}}}
  :dev-http {8000 "public"}}
