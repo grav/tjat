@@ -3,12 +3,13 @@
             ["@aws-sdk/s3-request-presigner" :as aws-presign]))
 
 (defn create-client [{:keys [access-key-id secret-access-key endpoint]}]
-  (aws-s3/S3Client.
-    #js{:region      "auto"
-        :endpoint    endpoint
-        :signatureVersion "v4"
-        :credentials #js {:accessKeyId     access-key-id
-                          :secretAccessKey secret-access-key}}))
+  (let [[_ region] (re-matches #"https://s3.(.+).amazonaws.com" endpoint)]
+    (aws-s3/S3Client.
+      #js{:region           (or region "auto")
+          :endpoint         endpoint
+          :signatureVersion "v4"
+          :credentials      #js {:accessKeyId     access-key-id
+                                 :secretAccessKey secret-access-key}})))
 
 (defn get-file+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
   (let [s3-client (create-client s3)]

@@ -391,22 +391,17 @@
                                                       base64-data (second (clojure.string/split data-url #","))
                                                       file-type (.-type file)
                                                       s3-client (when s3-configured?
-                                                                  (aws-s3/S3Client.
-                                                                    #js{:region      "auto"
-                                                                        :endpoint    endpoint
-                                                                        :signatureVersion "v4"
-                                                                        :credentials #js {:accessKeyId     access-key-id
-                                                                                          :secretAccessKey secret-access-key}}))]
+                                                                  (s3/create-client s3))]
                                                   (js/console.log s3-client)
                                                   (when s3-client
                                                     (-> (.arrayBuffer file)
                                                         (.then (fn [buffer]
                                                                  (.digest js/crypto.subtle "SHA-256" buffer)))
                                                         (.then (fn [buffer]
-                                                                 (->> (js/Array.from (js/Uint8Array. buffer))
-                                                                      (map (fn [b] (.padStart (.toString b 16) 2 "0")))
-                                                                      (str/join))))
-                                                        (.then (fn [file-hash]
+                                                                 {:file-hash (->> (js/Array.from (js/Uint8Array. buffer))
+                                                                                  (map (fn [b] (.padStart (.toString b 16) 2 "0")))
+                                                                                  (str/join))}))
+                                                        (.then (fn [{:keys [file-hash]}]
                                                                  (swap! !state update-in [:uploaded-files file-key]
                                                                         (fn [f]
                                                                           (assoc f :file-hash file-hash
@@ -456,7 +451,10 @@
                                                                            (js/console.log (str "file " file-hash " already cached")))
 
                                                                          :else
-                                                                         (throw (ex-info "Error checking cache" {:status status}))))))))
+                                                                         (throw (ex-info "Error caching" {:status status}))))))
+                                                        (.catch (fn [e]
+                                                                  (js/alert e)
+                                                                  (swap! !state update :uploaded-files dissoc file-key)))))
 
 
                                                   (swap! !state assoc-in [:uploaded-files file-key]
@@ -853,18 +851,19 @@
 
                                        "Import to Algolia"]]
                                      [:div
-                                      (for [{:keys [title key secret?]} [{:title   "S3 endpoint"
-                                                                          :key     :endpoint
-                                                                          :secret? false}
-                                                                         {:title "S3 bucket"
-                                                                          :key :bucket
-                                                                          :secret? false}
-                                                                         {:title "S3 access key ID"
-                                                                          :key :access-key-id
-                                                                          :secret? false}
-                                                                         {:title "S3 secret access key"
-                                                                          :key :secret-access-key
-                                                                          :secret? true}]]
+                                      (for [{:keys [title key secret? hint]} [{:title   "S3 endpoint"
+                                                                               :key     :endpoint
+                                                                               :hint "S3: https://s3.[region].amazonaws.com R2: https://[account-id].r2.cloudflarestorage.com"
+                                                                               :secret? false}
+                                                                              {:title "S3 bucket"
+                                                                               :key :bucket
+                                                                               :secret? false}
+                                                                              {:title "S3 access key ID"
+                                                                               :key :access-key-id
+                                                                               :secret? false}
+                                                                              {:title "S3 secret access key"
+                                                                               :key :secret-access-key
+                                                                               :secret? true}]]
                                         ^{:key (str "s3-" (name key))}
                                          [:div {:style {:display :flex}} (str title ": ")
                                           [ui/edit-field {:secret? secret?
@@ -876,10 +875,15 @@
                                                                        (do
                                                                          (js/localStorage.removeItem (str "s3-" (name key)))
                                                                          (swap! !state update :s3 dissoc key))))
-                                                          :value   (get s3 key)}]])]]
+                                                          :value   (get s3 key)}]
+                                          (when hint
+                                            [:div {:style {:margin-left 5}} [:small [:i hint]]])])]]
                                     [app {:db             db
                                           :algolia-client algolia-client}
                                      !state]]))})))
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
+
+(comment
+  (s3/create-client (:s3 @!state)))
