@@ -19,6 +19,7 @@
     "react": "^19.0.0",
     "react-color": "^2.19.3",
     "react-dom": "^19.0.0",
+    "react-select": "^5.10.2",
     "showdown": "^2.1.0",
     "web-streams-polyfill": "^4.2.0"
   }
