@@ -79,7 +79,7 @@
                    :else
                    (throw (ex-info (str "Unsupported mime-type for upload") {:mime-type mime-type}))))}
 
-   :randomllm {:image-fn (fn [& _args])}})
+   :randomllm {:upload-fn (fn [& _args])}})
 
 (defn normalize-config [c]
   (merge
