@@ -319,6 +319,9 @@
           [:div (platform/format' "Select model: (%d selected)" (count models))]
           [:> Select
            {:isMulti true
+            :defaultValue (for [p models]
+                            {:value (name p)
+                             :label (name p)})
             :options (for [p all-models]
                        ^{:key (name p)}
                        {:value (name p)
