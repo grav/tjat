@@ -33,7 +33,8 @@
                     {:model-name "gemini-1.5-flash"}
                     :gemini-2.0-flash nil
                     :gemini-2.5-pro-exp-03-25 nil
-                    :gemini-2.5-flash-preview-04-17 nil}}
+                    :gemini-2.5-flash-preview-04-17 nil
+                    :gemini-2.5-flash-lite nil}}
   :ollama {:url "http://localhost:11434/v1/chat/completions"
            :models {:qwen3-8b
                     {:model-name "qwen3:8b"}}}
@@ -64,10 +65,9 @@
           :o4-mini [:openai]
           :gpt-4.5-preview [:openai]
           :gpt-5 [:openai]
-          :gemini-1.5-flash [:gemini]
-          :gemini-2.0-flash [:gemini]
-          :gemini-2.5-pro-exp-03-25 [:gemini]
-          :gemini-2.5-flash-preview-04-17 [:gemini]
+          :gemini-2.5-flash [:gemini]
+          :gemini-2.5-flash-lite [:gemini]
+          :gemini-2.5-pro [:gemini]
           :mistral-small [:mistral]
           :grok-3 [:xai]
           :grok-4 [:xai]
