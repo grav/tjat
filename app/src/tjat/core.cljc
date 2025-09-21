@@ -196,55 +196,61 @@
                 "Show hidden"]]
          [:div {:style {:display :flex
                         :padding 10}}
-          [:div (for [{:keys [id text hidden]} (reverse chats)]
-                  ^{:key id} [:div {:on-click #(on-chat-select id)
-                                    :style    {:display (when (or (and search-results
-                                                                       (nil? (search-chat-ids id)))
-                                                                  (and (not show-hidden)
-                                                                       hidden))
-                                                          :none)}}
-                              [:div {:style          {:position         :relative
-                                                      :font-weight      900
-                                                      :background-color (or
-                                                                          (when (= hover id) :lightblue)
-                                                                          (when (= selected-chat-id id) :lightgray))
-                                                      :padding          10
-                                                      :white-space      (when (not= resting id) :nowrap)
-                                                      :width            150
-                                                      :overflow-x       :hidden
-                                                      :overflow-y       :auto
-                                                      :text-overflow    (when (not= resting id) :ellipsis)
-                                                      :max-height       200}
-                                     :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
-                                                                                             (fn []
-                                                                                               (swap! !state
-                                                                                                      assoc :resting id))
-                                                                                             300))
-                                     :on-mouse-leave (fn [_]
-                                                       (when timer
-                                                         (js/clearTimeout timer))
-                                                       (swap! !state dissoc :hover :timer :resting))}
-                               text
-                               (when (or hidden
-                                         (= id hover))
-                                 [:div {:title    (if hidden "Show" "Hide")
-                                        :style    {:position :absolute
-                                                   :top      0
-                                                   :padding  5
-                                                   :right    0
-                                                   :z-index  1
-                                                   :cursor   :pointer}
-                                        :on-click (fn [e]
-                                                    (.stopPropagation e)
-                                                    (on-chat-toggle-hidden id (not hidden)))}
-                                  (if hidden "+" "˟")])]])]
-          [:div {:style {:display (when (and hidden
+          [:div
+           {:style {:height 500
+                    :width 170
+                    :overflow-y :scroll}}
+           (for [{:keys [id text hidden]} (reverse chats)]
+             ^{:key id} [:div {:on-click #(on-chat-select id)
+                               :style    {:display (when (or (and search-results
+                                                                  (nil? (search-chat-ids id)))
+                                                             (and (not show-hidden)
+                                                                  hidden))
+                                                     :none)}}
+                         [:div {:style          {:position         :relative
+                                                 :font-weight      900
+                                                 :background-color (or
+                                                                     (when (= hover id) :lightblue)
+                                                                     (when (= selected-chat-id id) :lightgray))
+                                                 :padding          10
+                                                 :white-space      (when (not= resting id) :nowrap)
+                                                 :overflow-x       :hidden
+                                                 :overflow-y       :auto
+                                                 :text-overflow    (when (not= resting id) :ellipsis)
+                                                 :max-height       200}
+                                :on-mouse-enter #(swap! !state assoc :hover id :timer (js/setTimeout
+                                                                                        (fn []
+                                                                                          (swap! !state
+                                                                                                 assoc :resting id))
+                                                                                        300))
+                                :on-mouse-leave (fn [_]
+                                                  (when timer
+                                                    (js/clearTimeout timer))
+                                                  (swap! !state dissoc :hover :timer :resting))}
+                          text
+                          (when (or hidden
+                                    (= id hover))
+                            [:div {:title    (if hidden "Show" "Hide")
+                                   :style    {:position :absolute
+                                              :top      0
+                                              :padding  5
+                                              :right    0
+                                              :z-index  1
+                                              :cursor   :pointer}
+                                   :on-click (fn [e]
+                                               (.stopPropagation e)
+                                               (on-chat-toggle-hidden id (not hidden)))}
+                             (if hidden "+" "˟")])]])]
+          [:div {:style {:width "calc(100% - 170px)"
+                         :display (when (and hidden
                                              (not show-hidden))
                                     :none)
                          :padding 10}}
-           [response-tabs (assoc chat
-                            :selected-response-id selected-response-id
-                            :loading-chats (get loading-chats selected-chat-id)) handlers]
+           [:div
+            {:style {:overflow-x :scroll}}
+            [response-tabs (assoc chat
+                             :selected-response-id selected-response-id
+                             :loading-chats (get loading-chats selected-chat-id)) handlers]]
            [:hr]
            (when (or (nil? search-results)
                      (search-response-ids selected-response-id))
