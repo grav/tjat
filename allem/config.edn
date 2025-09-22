@@ -41,7 +41,8 @@
                     
   :xai {:url "https://api.x.ai/v1/chat/completions"
         :models {:grok-3 nil
-                 :grok-4 nil}}
+                 :grok-4 nil
+                 :grok-4-fast-reasoning nil}}
   :mistral {:url "https://api.mistral.ai/v1/chat/completions"
             :models {:mistral-small
                      {:model-name "mistral-small-latest"}}}
@@ -71,4 +72,6 @@
           :mistral-small [:mistral]
           :grok-3 [:xai]
           :grok-4 [:xai]
+          :grok-4-fast-reasoning [:xai]
+          :grok-4-fast-non-reasoning [:xai]
           :qwen3-8b [:ollama]}}
