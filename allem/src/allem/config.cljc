@@ -26,6 +26,18 @@
   {:type "text"
    :text s})
 
+(def openai-upload-fn
+  (fn [{:keys [mime-type base64-data]}]
+    (cond
+      (str/starts-with? mime-type "image/")
+      {:type "image_url"
+       :image_url
+       {:url (platform/format' "data:%s;base64,%s"
+                    mime-type
+                    base64-data)}}
+      :else
+      (throw (ex-info (str "Unsupported mime-type for upload") {:mime-type mime-type})))))
+
 (def functions
   {:anthropic
    ;;; https://docs.anthropic.com/en/api/messages
@@ -67,18 +79,6 @@
                          {:inline_data
                           {:mime_type mime-type
                            :data base64-data}})}
-   :openai
-   {:upload-fn (fn [{:keys [mime-type base64-data]}]
-                 (cond
-                   (str/starts-with? mime-type "image/")
-                   {:type "image_url"
-                    :image_url
-                    {:url (platform/format' "data:%s;base64,%s"
-                                                     mime-type
-                                                     base64-data)}}
-                   :else
-                   (throw (ex-info (str "Unsupported mime-type for upload") {:mime-type mime-type}))))}
-
    :randomllm {:upload-fn (fn [& _args])}})
 
 (defn normalize-config [c]
@@ -86,5 +86,6 @@
     openai-content-structure
     {:headers-fn bearer-headers-fn
      :reply-fn   openai-reply-fn
-     :text-fn    openai-text-fn}
+     :text-fn    openai-text-fn
+     :upload-fn openai-upload-fn}
     c))
