@@ -290,12 +290,14 @@
             [:div
              [:pre 'db? (str " " (some? db))]
              [:pre 's3? (str " " (some? s3-configured?))]
-             [:pre (util/spprint (-> (dissoc @!state :_chats)
-                                     (update :uploaded-files
-                                             (fn [files]
-                                               (->> (for [[k v] files]
-                                                      [k (dissoc v :base64)])
-                                                    (into {}))))))]])
+             [:details
+              [:summary "app-state"]
+              [:pre (util/spprint (-> (dissoc @!state :_chats)
+                                      (update :uploaded-files
+                                              (fn [files]
+                                                (->> (for [[k v] files]
+                                                       [k (dissoc v :base64)])
+                                                     (into {}))))))]]])
          [:div
           [:details #?(:dev-config {:open true})
            [:summary "API keys"]
