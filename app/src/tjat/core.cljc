@@ -195,10 +195,10 @@
                                             (swap! !state assoc :show-hidden (not show-hidden)))}]
                 "Show hidden"]]
          [:div {:style {:display :flex
+                        :height "100vh"
                         :padding 10}}
           [:div
-           {:style {:height 500
-                    :width 170
+           {:style {:width 170
                     :overflow-y :scroll}}
            (for [{:keys [id text hidden]} (reverse chats)]
              ^{:key id} [:div {:on-click #(on-chat-select id)
