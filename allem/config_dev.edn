@@ -2,7 +2,9 @@
                          :models {:random1 nil
                                   :random2 {:model-name  "random2"
                                             :body-params {:sleep 2}}
-                                  :random3 {:body-params {:think true}}}}}
+                                  :random3 {:body-params {:think true}}
+                                  :random4 {:body-params {:parrot true}}}}}
  :models    {:random1 [:randomllm]
              :random2 [:randomllm]
-             :random3 [:randomllm]}}
+             :random3 [:randomllm]
+             :random4 [:randomllm]}}

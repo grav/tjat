@@ -242,6 +242,7 @@
                                                (on-chat-toggle-hidden id (not hidden)))}
                              (if hidden "+" "˟")])]])]
           [:div {:style {:width "calc(100% - 170px)"
+                         :max-height "100%"
                          :display (when (and hidden
                                              (not show-hidden))
                                     :none)

@@ -38,9 +38,14 @@ def chat_completions():
     model = data.get('model', 'random-response-model')
     sleep = data.get('sleep')
     think = data.get('think')
+    parrot = data.get('parrot')
+    messages = data.get('messages', [])
 
-    # Generate a random response
-    response_content = random.choice(random_responses)
+    if parrot:
+        response_content = (messages[-1]['content'][0]['text'] + "\n\n") * 10
+    else:
+        # Generate a random response
+        response_content = random.choice(random_responses)
     if think:
         response_content = "<think>\nThinking really, really hard ...\n\nPondering still ...\n\nOkay, I think I got it!\n\n</think>\n" + response_content
         # Create response in OpenAI format
