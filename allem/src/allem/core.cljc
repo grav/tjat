@@ -24,23 +24,6 @@
 
 ;; ollama serve
 
-#_(defn ollama [{:keys [msg model]
-                 :or {model "mistral-small:24b"}}]
-    (-> (request-with-throw-on-error
-          {:headers
-           {"content-type" "application/json"}
-           :method :post
-           :url "http://localhost:11434/api/generate"
-           :body (json/json-str
-                   {:model model
-                    :prompt msg
-                    :stream false})})
-        :body
-        (json/read-str :key-fn keyword)
-        :response)
-
-    (comment
-      (claude' {:msg "why is the sky blue?"})))
 (defn message->content [{:keys [upload-fn text-fn]} m]
   (cond
     (string? m)
@@ -87,13 +70,12 @@
               #?(:dev-config (-> (rc/inline "./config_dev.edn")
                                  edn/read-string))))
 
-
 (defn make-config [{:keys [model provider api-keys]}]
   (let [provider (or provider
                      (-> (get-in config [:models model])
                          first))
         _ (assert provider model)
-        {:keys [models]
+        {:keys [models use-latest?]
          :as   config} (get-in config [:providers provider])
         {:keys [model-name post-process body-params]
          :or   {model-name (name model)}} (if model
@@ -106,18 +88,14 @@
               :config
               :models)
       config-fns
-      (cond-> {:model        model-name
+      (cond-> {:model        (cond-> model-name
+                                     use-latest? (str "-latest"))
                ;; TODO - maybe nuke post-process ...
                :post-process (or (some-> post-process #_resolve)
                                  identity)
                :api-key      (get api-keys provider)
                :provider     provider}
               body-params (assoc :body-params body-params)))))
-
-
-(comment
-  (make-config {:model :gemini-1.5-flash}))
-
 
 (defn apply-config
   [{:keys [messages] :as config}]
@@ -138,7 +116,7 @@
 (comment
   (apply-config
     (merge
-      (make-config {:model   :gpt-5
+      (make-config {:model   :grok-4
                     :api-key "fake-key-abcd"})
 
       {:messages ["what's in this image?"]})))
