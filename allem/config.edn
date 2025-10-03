@@ -28,7 +28,10 @@
              :models {:deepseek-v3
                       {:model-name "deepseek-chat"}
                       :deepseek-r1
-                      {:model-name "deepseek-reasoner"}}}}
+                      {:model-name "deepseek-reasoner"}}}
+  :hyperbolic {:url "https://api.hyperbolic.xyz/v1/chat/completions"
+               :models {:qwen3-480b-coder
+                        {:model-name "Qwen/Qwen3-Coder-480B-A35B-Instruct"}}}}
  :models {:deepseek-v3         [:together-ai
                                 :deepseek]
           :deepseek-r1          [:groq
@@ -50,4 +53,4 @@
           :grok-4 [:xai]
           :grok-4-fast-reasoning [:xai]
           :grok-4-fast-non-reasoning [:xai]
-          :qwen3-8b [:ollama]}}
+          :qwen3-480b-coder [:hyperbolic]}}
