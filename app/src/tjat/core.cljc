@@ -526,60 +526,29 @@
                                                         (.then (fn [buffer]
                                                                  (.digest js/crypto.subtle "SHA-256" buffer)))
                                                         (.then (fn [buffer]
-                                                                 {:file-hash (->> (js/Array.from (js/Uint8Array. buffer))
-                                                                                  (map (fn [b] (.padStart (.toString b 16) 2 "0")))
-                                                                                  (str/join))}))
-                                                        (.then (fn [{:keys [file-hash]}]
-                                                                 (swap! !state update-in [:uploaded-files file-key]
-                                                                        (fn [f]
-                                                                          (assoc f :file-hash file-hash
-                                                                                   :cache-status :checking)))
-                                                                 ;; check if file already exists
-                                                                 (-> (aws-presign/getSignedUrl s3-client
-                                                                                               (aws-s3/HeadObjectCommand.
-                                                                                                 #js {:Bucket bucket
-                                                                                                      :Key    file-hash})
-                                                                                               #js{:expiresIn 300})
-                                                                     (.then (fn [url]
-                                                                              {:file-hash file-hash
-                                                                               :signed-url url})))))
-                                                        (.then (fn [{:keys [signed-url] :as res}]
-                                                                 (-> (js/fetch signed-url #js{:method "HEAD"})
-                                                                     (.then (fn [r]
-                                                                              (assoc res
-                                                                                :response r))))))
-                                                        (.then (fn [{:keys [response file-hash]}]
-                                                                 (let [status (.-status response)]
-
-                                                                   (cond (= 404 status)
-                                                                         (do
-                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                  :caching)
-                                                                           (js/console.log (str "caching file " file-hash "..."))
-                                                                           (-> (aws-presign/getSignedUrl s3-client
-                                                                                                         (aws-s3/PutObjectCommand.
-                                                                                                           #js {:Bucket      bucket
-                                                                                                                :Key         file-hash
-                                                                                                                :ContentType file-type})
-                                                                                                         #{:expiresIn     300})
-                                                                               (.then (fn [signed-url]
-                                                                                        (js/fetch signed-url
-                                                                                                  #js {:method  "PUT"
-                                                                                                       :headers #js {"Content-Type" file-type}
-                                                                                                       :body    file})))
-                                                                               (.then (fn [_]
-                                                                                        (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                               :cached)
-                                                                                        (js/console.log "done")))))
-
-                                                                         (= 200 status)
-                                                                         (do
-                                                                           (swap! !state assoc-in [:uploaded-files file-key :cache-status]
-                                                                                  :cached)
-                                                                           (js/console.log (str "file " file-hash " already cached")))
-
-                                                                         :else
-                                                                         (throw (ex-info "Error caching" {:status status}))))))
+                                                                 (let [file-hash (->> (js/Array.from (js/Uint8Array. buffer))
+                                                                                      (map (fn [b] (.padStart (.toString b 16) 2 "0")))
+                                                                                      (str/join))]
+                                                                   (swap! !state update-in [:uploaded-files file-key]
+                                                                          (fn [f]
+                                                                            (assoc f :file-hash file-hash
+                                                                                     :cache-status :checking)))
+                                                                   {:file-hash file-hash})))
+                                                        (.then (fn [{:keys [file-hash] :as args}]
+                                                                 (-> (s3/file-exists+ s3 {:key file-hash})
+                                                                     (.then (fn [file-exists?]
+                                                                              (assoc args :file-exists? file-exists?))))))
+                                                        (.then (fn [{:keys [file-exists? file-hash]}]
+                                                                 (when-not file-exists?
+                                                                   (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                          :caching)
+                                                                   (js/console.log (str "caching file " file-hash "..."))
+                                                                   (s3/upload+ s3 {:file file
+                                                                                   :key  file-hash}))))
+                                                        (.then (fn [_]
+                                                                 (swap! !state assoc-in [:uploaded-files file-key :cache-status]
+                                                                        :cached)
+                                                                 (js/console.log "done")))
                                                         (.catch (fn [e]
                                                                   (js/alert e)
                                                                   (swap! !state update :uploaded-files dissoc file-key)))))
