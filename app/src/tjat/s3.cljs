@@ -35,14 +35,14 @@
                      (throw (ex-info "Error getting file from cache" {:status status})))))))))
 
 
-(defn get-file-open-url+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
+(defn get-file-open-url+ [{:keys [bucket] :as s3} {:keys [key]}]
   (let [s3-client (create-client s3)]
     (-> (js/Promise.resolve)
         (.then (fn []
                  (aws-presign/getSignedUrl s3-client
                                            (aws-s3/GetObjectCommand.
                                                  #js {:Bucket  bucket
-                                                      :Key     file-hash})
+                                                      :Key     key})
                                            #js {:expiresIn 300}))))))
 
 (defn file-exists+ [{:keys [bucket] :as s3} {:keys [key]}]
@@ -68,9 +68,9 @@
                          :else
                          (throw (ex-info "Error checking if file exists" {:status status})))))))))
 
-(defn upload+ [{:keys [bucket] :as s3} {:keys [file key]}]
+(defn upload+ [{:keys [bucket] :as s3} {:keys [file key file-type]}]
   (let [s3-client (create-client s3)
-        file-type (.-type file)]
+        file-type (or file-type (.-type file))]
     (-> (js/Promise.resolve)
         (.then #(aws-presign/getSignedUrl s3-client
                                           (aws-s3/PutObjectCommand.
