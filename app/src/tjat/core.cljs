@@ -128,10 +128,10 @@
              [:option {:id (name p)}
               (name p)])]
           (when provider
-            [:div [:p (str "Provider: ")
+            [:div [:p "Provider: "
                    [:b (name provider)]]
              [:div {:style {:display :flex}}
-              [:div "Api key:"]
+              [:div "Api key: "]
               [ui/secret-edit-field {:on-save (fn [k]
                                                 (let [api-keys (if (seq k)
                                                                  (merge api-keys
@@ -276,7 +276,10 @@
 
                                      [:summary "Settings"]
                                      [:div {:style {:display :flex}}
-                                      "InstantDB app-id:"
+                                      [:a {:href "https://www.instantdb.com/dash"
+                                           :target "_blank"}
+                                       "InstantDB"]
+                                      " app-id: "
                                       [ui/secret-edit-field {:on-save (fn [s]
                                                                         (and
                                                                           (or (or (empty? s)
