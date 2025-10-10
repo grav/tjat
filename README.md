@@ -9,7 +9,11 @@ Try it here: [https://betafunk.dk/tjat](http://betafunk.dk/tjat)
 ## FAQ
 Q: Does this app steal my API keys?
 
-A: No, keys are stored loaclly, and only submitted to model providers
+A: No, keys are stored locally, and only submitted to model providers
+
+Q: How do I save my chat history?
+
+A: Go to [InstantDB](https://instantdb.com), create a new app, and copy the app-id into Tjat's settings.
 
 Q: Can people read my chat history?
 
