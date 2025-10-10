@@ -470,6 +470,7 @@
                             :border-radius "5px"
                             :cursor "pointer"
                             :transition "all 0.2s ease"}
+                    :tabIndex 0
                     :on-click (fn [e]
                                 (let [input (.createElement js/document "input")]
                                   (set! (.-type input) "file")
@@ -477,6 +478,29 @@
                                   (set! (.-onchange input) (fn [e]
                                                              (upload-s3 (array-seq (.-files (.-target e))))))
                                   (.click input)))
+                    :on-paste (fn [e]
+                                ;; allow pasting images (clipboard files) or image URLs
+                                (.preventDefault e)
+                                (.stopPropagation e)
+                                (let [clipboard (.-clipboardData e)
+                                      items (.-items clipboard)
+                                      items-seq (array-seq items)
+                                      file-items (filter #(= "file" (.-kind %)) items-seq)]
+                                  (if (seq file-items)
+                                    ;; clipboard contains file(s) (e.g. image)
+                                    (let [files (mapv #(.getAsFile %) file-items)]
+                                      (upload-s3 (array-seq (clj->js files))))
+                                    ;; try text/url
+                                    (let [text (.getData clipboard "text")
+                                          url text]
+                                      (when (and url
+                                                 (re-matches #".*\.(png|jpe?g|gif|webp|bmp|svg)(\?.*)?" url))
+                                        (-> (js/fetch url)
+                                            (.then (fn [res] (.blob res)))
+                                            (.then (fn [blob]
+                                                     (let [name (or (last (str/split url "/")) (str "pasted-" (random-uuid)))
+                                                           file (js/File. (clj->js [blob]) name #js{:type (.-type blob)})]
+                                                       (upload-s3 (array-seq (clj->js [file]))))))))))))
                     :on-drag-over (fn [e]
                                     (.preventDefault e)
                                     (.stopPropagation e)
@@ -493,7 +517,7 @@
               [:p {:style {:margin "0"}}
                (if @drag-over?
                  "Drop files here"
-                 "Click to select files or drag and drop them here")]])]
+                 "Click to select files, drag and drop them here, or paste an image/URL")]])]
           (when (seq uploaded-files)
             [:div
              [:p (str "Uploaded " (count uploaded-files) " file(s):")]
@@ -856,4 +880,3 @@
 
 (defn ^:dev/after-load main []
   (.render root (r/as-element [instantdb-view])))
-
