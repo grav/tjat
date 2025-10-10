@@ -237,26 +237,55 @@
              :on-change
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
-          [:p
+          [:div
            [:label "Upload files: "]
-           [:input {:type "file"
-                    :multiple true
-                    :on-change (fn [e]
-                                 (let [files (array-seq (.-files (.-target e)))]
-                                   (doseq [file files]
-                                     (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
-                                       (when-not (get-in @!state [:uploaded-files file-key])
-                                         (let [reader (js/FileReader.)]
-                                           (set! (.-onload reader)
-                                                 (fn [event]
-                                                   (let [data-url (.-result (.-target event))
-                                                         base64-data (second (clojure.string/split data-url #","))]
-                                                     (swap! !state assoc-in [:uploaded-files file-key] 
-                                                            {:file file
-                                                             :base64 base64-data
-                                                             :name (.-name file)
-                                                             :type (.-type file)}))))
-                                           (.readAsDataURL reader file)))))))}]]
+           (let [drag-over? (r/atom false)
+                 handle-files (fn [files]
+                                (doseq [file files]
+                                  (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
+                                    (when-not (get-in @!state [:uploaded-files file-key])
+                                      (let [reader (js/FileReader.)]
+                                        (set! (.-onload reader)
+                                              (fn [event]
+                                                (let [data-url (.-result (.-target event))
+                                                      base64-data (second (clojure.string/split data-url #","))]
+                                                  (swap! !state assoc-in [:uploaded-files file-key] 
+                                                         {:file file
+                                                          :base64 base64-data
+                                                          :name (.-name file)
+                                                          :type (.-type file)}))))
+                                        (.readAsDataURL reader file))))))]
+             [:div {:style {:border (if @drag-over? "2px dashed #007cba" "2px dashed #ccc")
+                            :padding "20px"
+                            :text-align "center"
+                            :background-color (if @drag-over? "#f0f8ff" "#fafafa")
+                            :border-radius "5px"
+                            :cursor "pointer"
+                            :transition "all 0.2s ease"}
+                    :on-click (fn [e]
+                                (let [input (.createElement js/document "input")]
+                                  (set! (.-type input) "file")
+                                  (set! (.-multiple input) true)
+                                  (set! (.-onchange input) (fn [e]
+                                                             (handle-files (array-seq (.-files (.-target e))))))
+                                  (.click input)))
+                    :on-drag-over (fn [e]
+                                    (.preventDefault e)
+                                    (.stopPropagation e)
+                                    (reset! drag-over? true))
+                    :on-drag-leave (fn [e]
+                                     (.preventDefault e)
+                                     (.stopPropagation e)
+                                     (reset! drag-over? false))
+                    :on-drop (fn [e]
+                               (.preventDefault e)
+                               (.stopPropagation e)
+                               (reset! drag-over? false)
+                               (handle-files (array-seq (.-files (.-dataTransfer e)))))}
+              [:p {:style {:margin "0"}}
+               (if @drag-over?
+                 "Drop files here"
+                 "Click to select files or drag and drop them here")]])]
           (when-let [uploaded-files (:uploaded-files @!state)]
             (when (seq uploaded-files)
               [:div
