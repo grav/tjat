@@ -18,7 +18,8 @@
             [clojure.string]
             ["@aws-sdk/client-s3" :as aws-s3]
             ["@aws-sdk/s3-request-presigner" :as aws-presign]
-            [tjat.s3 :as s3]))
+            [tjat.s3 :as s3]
+            ["react-select$default" :as Select]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -316,22 +317,18 @@
 
          [:div
           [:div (platform/format' "Select model: (%d selected)" (count models))]
-          [:select
-           {:multiple true
-            :value     models
-            :on-change (fn [e]
-                         (let [selected-models (->> (.-selectedOptions (.-target e))
-                                                    (map #(.-value %))
-                                                    (map keyword)
+          [:> Select
+           {:isMulti true
+            :options (for [p all-models]
+                       ^{:key (name p)}
+                       {:value (name p)
+                        :label (name p)})
+            :on-change (fn [v]
+                         (let [selected-models (->> (js->clj v :keywordize-keys true)
+                                                    (map (comp keyword :value))
                                                     set)]
                            (swap! !state assoc :models selected-models)
-                           (js/localStorage.setItem "tjat-models" (pr-str selected-models))))}
-
-           (for [p all-models]
-             ^{:key (name p)}
-             [:option {:id (name p)}
-              (name p)])]
-
+                           (js/localStorage.setItem "tjat-models" (pr-str selected-models))))}]
           [:div
            "System prompt:"
            [:div {:style {:display :flex}}
