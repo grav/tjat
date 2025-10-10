@@ -55,7 +55,7 @@
   (clj->js
     {:type "lang"
      :regex #"<think>"
-     :replace "<small><details><summary><i>Think \uD83D\uDCAD</i></summary><i>"}))
+     :replace "<small><details><summary><i>Think</i> \uD83D\uDCAD</summary><i>"}))
 
 (def think-end
   (clj->js
@@ -63,21 +63,29 @@
      :regex #"</think>"
      :replace "</i><hr></details></small>"}))
 
-(defn response-view [{:keys [request-time id text] :as x}]
+(defn markdown-view [text]
+  [:p
+   {:dangerouslySetInnerHTML
+    {:__html (.makeHtml
+               ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
+               (doto (showdown/Converter.
+                       (clj->js {:extensions [think-start
+                                              think-end]}))
+                 (.setFlavor "github")) text)}}])
+
+(defn response-view [{:keys [request-time id text system-prompt] :as x}]
   (when id
     [:div
      [:div [:i (some-> request-time
                        js/Date.parse
                        (js/Date.)
                        str)]]
-     [:div [:p
-            {:dangerouslySetInnerHTML
-             {:__html (.makeHtml
-                        ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-                        (doto (showdown/Converter.
-                                (clj->js {:extensions [think-start
-                                                       think-end]}))
-                          (.setFlavor "github")) text)}}]]]))
+     (when system-prompt
+       [:div [:small
+              [:details
+               [:summary [:i "System prompt"] " \uD83E\uDD16"]
+               [:i [markdown-view system-prompt]]]]])
+     [:div [markdown-view text]]]))
 
 (defn system-prompt-tabs [{:keys [ids on-select selected-id system-prompts]}]
   [:div {:style {:display :flex}}
@@ -105,8 +113,9 @@
                                                                           (and (nil? selected-response-id)
                                                                                (zero? i))) :lightgray)}}
                                 (name model)]]])
-           (for [model (vals loading-chats)]
-             [:div ^{:key (name model)}
+           (for [[i model] (->> (vals loading-chats)
+                                (map vector (range)))]
+             [:div ^{:key i}
               [:div
                {:style {:padding 10}}
                [:div {:style {:color :lightgray}}
