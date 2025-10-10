@@ -10,8 +10,8 @@
                          :claude-3.7-sonnet
                          {:model-name "claude-3-7-sonnet-20250219"
                           :body-params {:max_tokens 64000}}
-                         :claude-opus-4
-                         {:model-name "claude-opus-4-20250514"
+                         :claude-opus-4.1
+                         {:model-name "claude-opus-4-1-20250805"
                           :body-params {:max_tokens 32000}}
                          :claude-sonnet-4
                          {:model-name "claude-sonnet-4-20250514"
@@ -54,7 +54,7 @@
                                  :deepseek]
           :claude-3.5-sonnet [:anthropic]
           :claude-3.7-sonnet [:anthropic]
-          :claude-opus-4 [:anthropic]
+          :claude-opus-4.1 [:anthropic]
           :claude-sonnet-4 [:anthropic]
           :gpt-4o [:openai]
           :gpt-4.1 [:openai]
