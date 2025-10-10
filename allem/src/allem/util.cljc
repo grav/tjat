@@ -28,6 +28,12 @@
         str/upper-case
         (str/replace "-" "_"))))
 
+(defn date->str [date]
+  (some-> date
+          js/Date.parse
+          (js/Date.)
+          str))
+
 #_(defn get-api-key [provider]
     (or (get api-keys provider)
         (System/getenv (key->env-var provider))

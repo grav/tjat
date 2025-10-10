@@ -5,6 +5,8 @@
             [clojure.string :as str]
             [reagent.core :as r]
             [goog.dom :as gdom]
+            [goog.string :as gstring]
+            [goog.string.format]
             [allem.core]
             [httpurr.client :as http]
             [httpurr.client.xhr-alt :refer [client]]
@@ -68,15 +70,18 @@
      :regex #"</think>"
      :replace "</i><hr></details></small>"}))
 
+(defn markdown->html [text]
+  (.makeHtml
+    ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
+    (doto (showdown/Converter.
+            (clj->js {:extensions [think-start
+                                   think-end]}))
+      (.setFlavor "github")) text))
+
 (defn markdown-view [text]
   [:p
    {:dangerouslySetInnerHTML
-    {:__html (.makeHtml
-               ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-               (doto (showdown/Converter.
-                       (clj->js {:extensions [think-start
-                                              think-end]}))
-                 (.setFlavor "github")) text)}}])
+    {:__html (markdown->html text)}}])
 
 (defn add-file-button []
   (let [!is-adding (r/atom nil)]
@@ -93,50 +98,74 @@
 
          "Add"]))))
 
-(defn open-file-button [{:keys [title on-open-file file]}]
+(defn open-file-button [{:keys [title on-open-file]}]
   [:a {:style {:margin-left 5}
        :href "#"
        :on-click (fn [e]
                    (.preventDefault e)
-                   (-> (on-open-file file)
+                   (-> (on-open-file)
                        (.then (fn [url]
                                 (js/window.open url "_blank")))))}
 
    (or title "Open")])
 
-(defn response-view [{{:keys [response-time id text system-prompt files]} :response
-                      :keys [on-add-file on-open-file]}]
-  (when id
-    [:div
-     [:div [:i (some-> response-time
-                       js/Date.parse
-                       (js/Date.)
-                       str)]]
-     (when system-prompt
-       [:div [:small
-              [:details
-               [:summary [:i "System prompt"] " \uD83E\uDD16"]
-               [:i [markdown-view system-prompt]]]]])
-     (when (not-empty files)
-       [:div [:small
-              [:details
-               [:summary [:i "Files"] " \uD83D\uDCC1"]
-               (for [[k {nme :name :as f
-                         file-hash :file-hash}] files]
-                 ^{:key (name k)} [:div {:style {:display :flex}}
-                                   nme
-                                   (when (and on-add-file
-                                              file-hash)
-                                     [:div
-                                      [add-file-button
-                                       {:on-add-file on-add-file
-                                        :file f}]
-                                      [open-file-button
-                                       {:on-open-file on-open-file
-                                        :file f}]])])]]])
+(defn response-view []
+  (let [!state (r/atom nil)]
+    (fn [{{:keys [request-time response-time id text system-prompt files]} :response
+          {:keys [sharing-bucket sharing-url]
+           :as s3} :s3
+          :keys                                               [on-add-file]}]
 
+      (let [s3-sharing (assoc s3 :bucket sharing-bucket)
+            {{render-state id} :render-state} @!state
+            share-key (gstring/format "%s.html" id)]
+        (when id
+          [:div
+           [:div [:button {:on-click (fn []
+                                       (swap! !state assoc-in [:render-state id] :rendering)
+                                       (-> (s3/upload+ s3-sharing {:file
+                                                                   (markdown->html
+                                                                     (gstring/format
+                                                                       "*%s*\n\n%s\n\n<hr>\n\n%s"
+                                                                       (util/date->str request-time)
+                                                                       "Question"
+                                                                       text))
+                                                                   :file-type "text/html; charset=utf-8"
+                                                                   :key       share-key})
+                                           (.then #(swap! !state assoc-in [:render-state id] :rendered))
+                                           (.catch #(swap! !state update-in [:render-state] dissoc id))))
+                           :disabled (= render-state :rendering)}
 
-     [:div [markdown-view text]]]))
+                  "Share"]
+            (when (= render-state :rendered)
+              [open-file-button {:title        "Open Share"
+                                 :on-open-file (if sharing-url
+                                                 #(js/Promise.resolve (gstring/format "%s/%s"
+                                                                                      sharing-url share-key))
+                                                 #(s3/get-file-open-url+ s3-sharing {:key share-key}))}])]
+           [:div [:i (util/date->str response-time)]]
+           (when system-prompt
+             [:div [:small
+                    [:details
+                     [:summary [:i "System prompt"] " \uD83E\uDD16"]
+                     [:i [markdown-view system-prompt]]]]])
+           (when (not-empty files)
+             [:div [:small
+                    [:details
+                     [:summary [:i "Files"] " \uD83D\uDCC1"]
+                     (for [[k {nme       :name :as f
+                               file-hash :file-hash}] files]
+                       ^{:key (name k)} [:div {:style {:display :flex}}
+                                         nme
+                                         (when (and on-add-file
+                                                    file-hash)
+                                           [:div
+                                            [add-file-button
+                                             {:on-add-file on-add-file
+                                              :file        f}]
+                                            [open-file-button
+                                             {:on-open-file #(s3/get-file-open-url+ s3 {:key file-hash})}]])])]]])
+           [:div [markdown-view text]]])))))
 
 (defn system-prompt-tabs [{:keys [ids on-select selected-id system-prompts]}]
   [:div {:style {:display :flex}}
@@ -176,7 +205,7 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections loading-chats]
+    (fn [{:keys [chats selected-chat-id selections loading-chats s3]
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
@@ -258,6 +287,7 @@
                      (search-response-ids selected-response-id))
              [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
+                             :s3 s3
                              :on-add-file on-add-file
                              :on-open-file on-open-file}])]]]))))
 
@@ -619,7 +649,7 @@
           (when (seq uploaded-files)
             [:div
              [:p (str "Uploaded " (count uploaded-files) " file(s):")]
-             (for [[file-key {:keys [type cache-status]
+             (for [[file-key {:keys [type cache-status file-hash]
                               :as f
                               nme :name}] uploaded-files]
                ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " nme " (" type ")")
@@ -629,8 +659,7 @@
                                      [ui/spinner]
 
                                      (= cache-status :cached)
-                                     [open-file-button {:on-open-file (partial s3/get-file-open-url+ s3 f)
-                                                        :file         f
+                                     [open-file-button {:on-open-file #(s3/get-file-open-url+ s3 {:key file-hash})
                                                         :title        "Cached - Open"}]))])
 
 
@@ -670,7 +699,7 @@
                                  (swap! !state assoc :search-results res))}]])
           [ui/error-boundary
            [chat-menu (assoc @!state
-                        :s3-configured? s3-configured?)
+                        :s3 s3)
             {:on-chat-toggle-hidden (fn [chat-id hidden]
                                       (.transact db
                                                  (.update (aget (.-chats ^js/Object (.-tx db)) chat-id)
@@ -760,7 +789,9 @@
                                           :s3 {:endpoint (js/localStorage.getItem "s3-endpoint")
                                                :bucket (js/localStorage.getItem "s3-bucket")
                                                :access-key-id (js/localStorage.getItem "s3-access-key-id")
-                                               :secret-access-key (js/localStorage.getItem "s3-secret-access-key")})))
+                                               :secret-access-key (js/localStorage.getItem "s3-secret-access-key")
+                                               :sharing-bucket (js/localStorage.getItem "s3-sharing-bucket")
+                                               :sharing-url (js/localStorage.getItem "s3-sharing-url")})))
        :component-will-unmount (fn []
                                  (let [{:keys [unsubscribe]} @!ref-state]
                                    (when unsubscribe
@@ -869,7 +900,11 @@
                                                                                :secret? false}
                                                                               {:title "S3 secret access key"
                                                                                :key :secret-access-key
-                                                                               :secret? true}]]
+                                                                               :secret? true}
+                                                                              {:title "S3 sharing bucket"
+                                                                               :key :sharing-bucket}
+                                                                              {:title "Sharing base-url"
+                                                                               :key :sharing-url}]]
                                         ^{:key (str "s3-" (name key))}
                                          [:div {:style {:display :flex}} (str title ": ")
                                           [ui/edit-field {:secret? secret?
