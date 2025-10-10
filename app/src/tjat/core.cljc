@@ -104,11 +104,11 @@
 
    (or title "Open")])
 
-(defn response-view [{{:keys [request-time id text system-prompt files]} :response
+(defn response-view [{{:keys [response-time id text system-prompt files]} :response
                       :keys [on-add-file on-open-file]}]
   (when id
     [:div
-     [:div [:i (some-> request-time
+     [:div [:i (some-> response-time
                        js/Date.parse
                        (js/Date.)
                        str)]]
