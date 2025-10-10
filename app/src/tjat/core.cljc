@@ -106,10 +106,11 @@
                                                                                (zero? i))) :lightgray)}}
                                 (name model)]]])
            (for [model (vals loading-chats)]
-             [:div [:div
-                    {:style {:padding 10}}
-                    [:div {:style {:color :lightgray}}
-                     (name model)]]]))])
+             [:div ^{:key (name model)}
+              [:div
+               {:style {:padding 10}}
+               [:div {:style {:color :lightgray}}
+                (name model)]]]))])
 
 
 (defn chat-menu []
