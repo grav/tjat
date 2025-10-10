@@ -153,19 +153,22 @@
       (let [all-models (->> (get allem.core/config :models)
                             keys
                             sort)
-            {:keys [text model api-keys loading chats selected-chat-id]
+            {:keys [text model api-keys loading-chats chats selected-chat-id]
              :or   {model    (or
                                (some-> (js/localStorage.getItem "tjat-model") keyword)
                                (first all-models))
                     api-keys api-keys-persisted}} @!state
             {:keys [provider]} (allem.core/make-config {:model model})
+            loading (not (zero? (->> (for [[_ v] loading-chats]
+                                       v)
+                                     (apply +))))
             selected-chat (->> chats
                                (filter (comp #{selected-chat-id} :id))
                                util/single)]
         [:div
-         #_[:div
-            [:pre 'db? (str " " (some? db))]
-            [:pre (util/spprint @!state)]]
+         [:div
+          #_[:pre 'db? (str " " (some? db))]
+          [:pre (util/spprint (dissoc @!state :chats))]]
          [:h1 "Tjat!"]
          [:div
           "Model: "
@@ -206,7 +209,7 @@
            {:style {:height 50}}
            [:button {:disabled (empty? text)
                      :on-click #(do
-                                  (swap! !state assoc :loading true)
+
                                   (let [chat-id (if (not= text (:text selected-chat))
                                                   (if db
                                                     (let [chat-id (instantdb/id)
@@ -231,7 +234,10 @@
 
                                                   selected-chat-id)
                                         start-time (js/Date.)]
-                                    (swap! !state assoc :selected-chat-id chat-id)
+                                    (swap! !state (fn [s]
+                                                    (-> s
+                                                        (assoc :selected-chat-id chat-id)
+                                                        (update-in [:loading-chats chat-id] inc))))
                                     (-> (do-request! {:message  text
                                                       :model    model
                                                       :api-keys api-keys})
@@ -261,7 +267,7 @@
                                                        (swap! !state (fn [s]
                                                                        (-> s
                                                                            (assoc-in [:selections chat-id] response-id)
-                                                                           (assoc :loading false)))))
+                                                                           (update-in [:loading-chats chat-id] dec)))))
                                                      ;; local-only
                                                      (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
                                                                          (filter (fn [[_ id]]
