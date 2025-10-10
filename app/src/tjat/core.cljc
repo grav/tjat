@@ -16,7 +16,8 @@
             ["algoliasearch" :as algolia]
             [clojure.edn]
             [clojure.string]
-            ["aws-sdk" :as aws]))
+            ["aws-sdk" :as aws]
+            [tjat.s3 :as s3]))
 
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
@@ -76,8 +77,23 @@
                                               think-end]}))
                  (.setFlavor "github")) text)}}])
 
+(defn add-file-button []
+  (let [!is-adding (r/atom nil)]
+    (fn [{:keys [on-add-file file]}]
+      (if @!is-adding
+        [ui/spinner]
+        [:a {:style {:margin 5}
+             :href  "#" :on-click (fn [e]
+                                    (.preventDefault e)
+                                    (reset! !is-adding true)
+                                    (-> (on-add-file file)
+                                        (.catch #(js/alert (ex-message %)))
+                                        (.finally #(reset! !is-adding false))))}
+
+         "Add"]))))
+
 (defn response-view [{{:keys [request-time id text system-prompt files]} :response
-                      :keys [s3-configured? s3 on-add-file]}]
+                      :keys [on-add-file]}]
   (when id
     [:div
      [:div [:i (some-> request-time
@@ -93,16 +109,16 @@
        [:div [:small
               [:details
                [:summary [:i "Files"] " \uD83D\uDCC1"]
-               (for [[k {nme :name :as f}] files]
+               (for [[k {nme :name :as f
+                         file-hash :file-hash}] files]
                  ^{:key (name k)} [:div
                                    nme
-                                   (when s3-configured?
-                                     [:a {:style {:margin 5}
-                                          :href  "#" :on-click (fn [e]
-                                                                 (.preventDefault e)
-                                                                 (on-add-file f))}
+                                   (when (and on-add-file
+                                              file-hash)
+                                     [add-file-button
+                                      {:on-add-file on-add-file
+                                       :file f}])])]]])
 
-                                      "Add"])])]]])
 
      [:div [markdown-view text]]]))
 
@@ -144,7 +160,7 @@
 
 (defn chat-menu []
   (let [!state (r/atom nil)]
-    (fn [{:keys [chats selected-chat-id selections loading-chats s3-configured? s3]
+    (fn [{:keys [chats selected-chat-id selections loading-chats]
           {search-response-ids :responses
            search-chat-ids     :chats
            :as search-results} :search-results}
@@ -218,8 +234,6 @@
                      (search-response-ids selected-response-id))
              [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
-                             :s3-configured? s3-configured?
-                             :s3 s3
                              :on-add-file on-add-file}])]]]))))
 
 (defn app []
@@ -252,6 +266,7 @@
          #?(:dev-config
             [:div
              [:pre 'db? (str " " (some? db))]
+             [:pre 's3? (str " " (some? s3-configured?))]
              [:pre (util/spprint (-> (dissoc @!state :_chats)
                                      (update :uploaded-files
                                              (fn [files]
@@ -635,7 +650,26 @@
                                                :text text)))
              :on-response-select    (fn [[selected-chat-id id]]
                                       (swap! !state assoc-in [:selections selected-chat-id] id))
-             :on-add-file println}]]]]))))
+             :on-add-file (when s3-configured?
+                            (fn [{nme :name
+                                  :as f}]
+                              (-> (s3/get-file+ s3 f)
+                                  (.then (fn [response]
+                                           (.blob response)))
+                                  (.then (fn [blob]
+                                           (let [reader (js/FileReader.)
+                                                 p (js/Promise.
+                                                     (fn [resolve _reject]
+                                                       (set! (.-onload reader)
+                                                             (fn [_]
+                                                               (let [data-url (.-result reader)
+                                                                     base64-data (second (clojure.string/split data-url #","))]
+                                                                 (resolve base64-data))))))]
+                                             (.readAsDataURL reader blob)
+                                             p)))
+                                  (.then (fn [base64-data]
+                                           (swap! !state update :uploaded-files
+                                                  merge {nme (assoc f :base64 base64-data)}))))))}]]]]))))
 
 (defn instant-db-error-handler [res]
   (let [e (.-error res)]
