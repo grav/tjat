@@ -136,14 +136,11 @@
                        body-params)})))
 (comment
   (apply-config
-    (assoc
-      (make-config {:model   :gemini-1.5-flash
+    (merge
+      (make-config {:model   :gpt-5
                     :api-key "AIzaSyClvjs7oTP2DnZ32XbrthhSdBAalDEs4uc"})
 
-      :message "Why is the sky blue?")
-    #_{:messages ["what's in this image?"
-                  (FileInputStream. "/Users/grav/Downloads/cat.jpg")]
-       :model    :gpt-4o}))
+      {:messages ["what's in this image?"]})))
 
 (comment
   (http/send! client
