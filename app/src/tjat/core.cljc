@@ -127,10 +127,10 @@
                                                     (gstring/format
                                                       "*%s*\n\n%s\n\n<hr>\n\n%s"
                                                       (util/date->str request-time)
-                                                      selected-chat-text
+                                                      (gstring/htmlEscape selected-chat-text)
                                                       text))
                                              html-str (gstring/format "<html><head><style>code { white-space: pre-wrap; }</style></head><body style='max-width: 800px;'>%s</body></html>" body)]
-                                         (-> (s3/upload+ s3-sharing {:file html-str
+                                         (-> (s3/upload+ s3-sharing {:file      html-str
                                                                      :file-type "text/html; charset=utf-8"
                                                                      :key       share-key})
                                              (.then #(swap! !state assoc-in [:render-state id] :rendered))
