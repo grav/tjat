@@ -1,7 +1,8 @@
 (ns allem.config
   (:require [allem.platform :as platform]
             [allem.io :as io]
-            [allem.util :as util]))
+            [allem.util :as util]
+            [clojure.string :as str]))
 
 
 (defn remove-think [s]
@@ -35,11 +36,23 @@
                    "content-type"      "application/json"})
     :reply-fn   (fn [b]
                   (-> b :content util/single :text))
-    :image-fn (fn [{:keys [mime-type base64-data]}]
-                {:type "image"
-                 :source {:type "base64"
-                          :media_type mime-type
-                          :data base64-data}})}
+    :upload-fn (fn [{:keys [mime-type base64-data]}]
+                 (cond
+                   (str/starts-with? mime-type "image/")
+                   {:type "image"
+                    :source {:type "base64"
+                             :media_type mime-type
+                             :data base64-data}}
+
+                   (= mime-type "application/pdf")
+                   {:type "document"
+                    :source {:type "base64"
+                             :media_type mime-type
+                             :data base64-data}}
+
+                   :else
+                   (throw (ex-info (str "Unsupported mime-type for upload") {:mime-type mime-type}))))}
+
    :gemini {:headers-fn {}
             :url-fn (fn [{:keys [api-key model]}]
                       (platform/format'
@@ -49,24 +62,29 @@
             :level2 {:parts nil}
             :reply-fn #(-> % :candidates util/single :content :parts util/single :text)
             :text-fn #(hash-map :text %)
-            :image-fn (fn [{:keys [mime-type base64-data]}]
-                        ;; https://ai.google.dev/gemini-api/docs/vision?lang=rest
-                        {:inline_data
-                         {:mime_type mime-type
-                          :data base64-data}})}
+            :upload-fn (fn [{:keys [mime-type base64-data]}]
+                         ;; https://ai.google.dev/gemini-api/docs/vision?lang=rest
+                         {:inline_data
+                          {:mime_type mime-type
+                           :data base64-data}})}
    :openai
-   {:image-fn (fn [{:keys [mime-type base64-data]}]
-                {:type "image_url"
-                 :image_url
-                 {:url (platform/format' "data:%s;base64,%s"
-                                 mime-type
-                                 base64-data)}})}
+   {:upload-fn (fn [{:keys [mime-type base64-data]}]
+                 (cond
+                   (str/starts-with? mime-type "image/")
+                   {:type "image_url"
+                    :image_url
+                    {:url (platform/format' "data:%s;base64,%s"
+                                                     mime-type
+                                                     base64-data)}}
+                   :else
+                   (throw (ex-info (str "Unsupported mime-type for upload") {:mime-type mime-type}))))}
+
    :randomllm {:image-fn (fn [& _args])}})
 
 (defn normalize-config [c]
   (merge
     openai-content-structure
     {:headers-fn bearer-headers-fn
-     :reply-fn openai-reply-fn
-     :text-fn openai-text-fn}
+     :reply-fn   openai-reply-fn
+     :text-fn    openai-text-fn}
     c))

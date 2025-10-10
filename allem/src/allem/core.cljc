@@ -41,18 +41,18 @@
 
     (comment
       (claude' {:msg "why is the sky blue?"})))
-(defn message->content [{:keys [image-fn text-fn]} m]
+(defn message->content [{:keys [upload-fn text-fn]} m]
   (cond
     (string? m)
     (text-fn m)
 
     (map? m)
     (let [{:keys [ base64 type]} m]
-      (when-not (and base64 type image-fn (clojure.string/starts-with? type "image/"))
-        (throw (ex-info (str "File uploads are only supported for images when image-fn is available. "
-                             "Got file type: " type ", has image-fn: " (some? image-fn)
+      (when-not (and base64 type upload-fn)
+        (throw (ex-info (str "File uploads are only supported when upload-fn is available. "
+                             "Got file type: " type ", has upload-fn: " (some? upload-fn)
                              ", base64 size:" (count base64)) nil)))
-      (image-fn {:mime-type type :base64-data base64}))
+      (upload-fn {:mime-type type :base64-data base64}))
 
     :else (throw (ex-info (str "unknown content" m) {:m m}))))
 
