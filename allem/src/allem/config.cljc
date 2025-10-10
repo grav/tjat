@@ -4,12 +4,6 @@
             [allem.util :as util]
             [clojure.string :as str]))
 
-
-(defn remove-think [s]
-  (if-let [[_ matches] (re-matches #"<think>[\s\S]*?</think>([\s\S]*)" s)]
-    matches
-    s))
-
 (def openai-content-structure
   {:level1 {:messages nil}
    :level2 {:role "user"
