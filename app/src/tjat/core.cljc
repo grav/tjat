@@ -392,14 +392,16 @@
                                     (doseq [model models]
                                       (let [response-id (or (when db
                                                               (instantdb/id))
-                                                            (str (random-uuid)))]
+                                                            (str (random-uuid)))
+                                            system-prompt (-> (get-in system-prompts [model :value])
+                                                              not-empty)]
                                         (swap! !state (fn [s]
                                                         (-> s
                                                             (assoc :selected-chat-id chat-id)
                                                             (assoc-in [:loading-chats chat-id response-id] model))))
                                         (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
                                                                file-values (when uploaded-files (vals uploaded-files))
-                                                               messages (->> (concat [(get-in system-prompts [model :value]) text]
+                                                               messages (->> (concat [system-prompt text]
                                                                                      file-values)
                                                                              (remove nil?))]
                                                            {:messages messages
@@ -410,6 +412,7 @@
                                                            end-time (js/Date.)
                                                            response {:text          v
                                                                      :model         (name model)
+                                                                     :system-prompt system-prompt
                                                                      :request-time  start-time
                                                                      :response-time end-time}]
                                                        (if db
