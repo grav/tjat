@@ -11,14 +11,14 @@
           :credentials      #js {:accessKeyId     access-key-id
                                  :secretAccessKey secret-access-key}})))
 
-(defn get-file+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
+(defn get-file+ [{:keys [bucket] :as s3} {:keys [key]}]
   (let [s3-client (create-client s3)]
     (-> (js/Promise.resolve)
         (.then (fn []
                  (aws-presign/getSignedUrl s3-client
                                            (aws-s3/GetObjectCommand.
                                              #js {:Bucket  bucket
-                                                  :Key     file-hash})
+                                                  :Key     key})
                                            #js {:expiresIn 300})))
         (.then (fn [signed-url]
                  (js/fetch signed-url)))
@@ -84,3 +84,12 @@
                            #js {:method  "PUT"
                                 :headers #js {"Content-Type" file-type}
                                 :body    file}))))))
+
+(defn copy+ [s3 {:keys [source-bucket destination-bucket source-key destination-key file-type]}]
+  (let [source-client (assoc s3 :bucket source-bucket)
+        dest-client (assoc s3 :bucket destination-bucket)]
+    (-> (js/Promise.resolve)
+        (.then #(get-file+ source-client {:key source-key}))
+        (.then #(.blob %))
+        (.then #(upload+ dest-client {:file % :key destination-key :file-type file-type})))))
+

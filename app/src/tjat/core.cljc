@@ -123,18 +123,37 @@
           [:div
            [:div [:button {:on-click (fn []
                                        (swap! !state assoc-in [:render-state id] :rendering)
-                                       (let [body (markdown->html
+                                       (let [files-html (->> (for [[_k {:keys     [file-hash]
+                                                                        file-name :name :as f}] files]
+                                                               (gstring/format "<li><a href='%s/%s' target='%s'>%s</a></li>"
+                                                                               (:sharing-url s3)
+                                                                               file-hash
+                                                                               file-hash
+                                                                               file-name))
+                                                             (str/join "\n"))
+                                             body (markdown->html
                                                     (gstring/format
-                                                      "*%s*\n\n%s\n\n<hr>\n\n%s"
+                                                      "*%s*\n\n%s\n\n%s\n\n<hr>\n\n%s"
                                                       (util/date->str request-time)
                                                       (gstring/htmlEscape selected-chat-text)
+                                                      (gstring/format "Files:<ul>%s</ul>" files-html)
                                                       text))
                                              html-str (gstring/format "<html><head><style>code { white-space: pre-wrap; }</style></head><body style='max-width: 800px;'>%s</body></html>" body)]
-                                         (-> (s3/upload+ s3-sharing {:file      html-str
-                                                                     :file-type "text/html; charset=utf-8"
-                                                                     :key       share-key})
+                                         (-> (js/Promise.all (concat
+                                                               [(s3/upload+ s3-sharing {:file      html-str
+                                                                                        :file-type "text/html; charset=utf-8"
+                                                                                        :key       share-key})]
+                                                               (for [[_k {:keys     [file-hash file-type]}] files]
+                                                                 (s3/copy+ s3 {:source-bucket      (:bucket s3)
+                                                                               :destination-bucket (:sharing-bucket s3)
+                                                                               :source-key         file-hash
+                                                                               :destination-key    file-hash
+                                                                               :file-type          file-type}))))
+
                                              (.then #(swap! !state assoc-in [:render-state id] :rendered))
-                                             (.catch #(swap! !state update-in [:render-state] dissoc id)))))
+                                             (.catch (fn [e]
+                                                       (swap! !state update-in [:render-state] dissoc id)
+                                                       (js/console.log e))))))
                            :disabled (or (nil? sharing-bucket)
                                          (= render-state :rendering))}
 
@@ -724,7 +743,7 @@
              :on-add-file (when s3-configured?
                             (fn [{nme :name
                                   :as f}]
-                              (-> (s3/get-file+ s3 f)
+                              (-> (s3/get-file+ s3 {:key (:file-hash f)})
                                   (.then (fn [response]
                                            (.blob response)))
                                   (.then (fn [blob]
