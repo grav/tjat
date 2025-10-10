@@ -33,6 +33,22 @@ and then start your model, eg:
 $ ollama run qwen3:8b
 ```
 
+## Running the randomllm service locally
+
+The randomllm service provides a mock LLM API for testing purposes.
+
+```bash
+cd randomllm
+source venv/bin/activate
+pip install -r requirements.txt
+python randomllm.py
+```
+
+The service will run on port 8042 by default, or you can specify a port:
+```bash
+python randomllm.py 8080
+```
+
 ## Developing
 
 ### Pre-requisites
