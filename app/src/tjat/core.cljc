@@ -13,27 +13,30 @@
             [tjat.algolia :as a]
             ["@instantdb/core" :as instantdb]
             ["algoliasearch" :as algolia]
-            [clojure.edn]))
+            [clojure.edn]
+            [clojure.string]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
 (defonce !state (r/atom nil))
 
-(defn do-request! [{:keys [message model api-keys]}]
-  (let [config (allem.core/make-config
-                 {:model    model
-                  :api-keys api-keys})
-        {:keys [reply-fn headers url body]} (allem.core/apply-config
-                                              (assoc config
-                                                :message message))]
-    (-> (http/send! client {:method  :post
-                            :url     url
-                            :headers headers
-                            :body    (js/JSON.stringify (clj->js body))})
-        (.then #(get % :body))
-        (.then js/JSON.parse)
-        (.then #(js->clj % :keywordize-keys true))
-        (.then reply-fn))))
+(defn do-request! [{:keys [messages model api-keys]}]
+  (-> (js/Promise.resolve nil)
+      (.then (fn [_]
+               (let [config (allem.core/make-config
+                              {:model    model
+                               :api-keys api-keys})
+                     {:keys [reply-fn headers url body]} (allem.core/apply-config
+                                                           (assoc config :messages messages))]
+                 (-> (http/send! client {:method  :post
+                                         :url     url
+                                         :headers headers
+                                         :body    (js/JSON.stringify (clj->js body))})
+                     (.then #(get % :body))
+                     (.then js/JSON.parse)
+                     (.then #(js->clj % :keywordize-keys true))
+                     (.then reply-fn)))))))
+
 
 (comment
   (-> (do-request! {:message "yolo"
@@ -183,7 +186,7 @@
          #?(:dev-config
             [:div
              [:pre 'db? (str " " (some? db))]
-             [:pre (util/spprint (dissoc @!state :chats))]])
+             [:pre (util/spprint (dissoc @!state :chats :uploaded-files))]])
          [:div
           [:details #?(:dev-config {:open true})
            [:summary "API keys"]
@@ -235,6 +238,35 @@
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
           [:p
+           [:label "Upload files: "]
+           [:input {:type "file"
+                    :multiple true
+                    :on-change (fn [e]
+                                 (let [files (array-seq (.-files (.-target e)))]
+                                   (doseq [file files]
+                                     (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
+                                       (when-not (get-in @!state [:uploaded-files file-key])
+                                         (let [reader (js/FileReader.)]
+                                           (set! (.-onload reader)
+                                                 (fn [event]
+                                                   (let [data-url (.-result (.-target event))
+                                                         base64-data (second (clojure.string/split data-url #","))]
+                                                     (swap! !state assoc-in [:uploaded-files file-key] 
+                                                            {:file file
+                                                             :base64 base64-data
+                                                             :name (.-name file)
+                                                             :type (.-type file)}))))
+                                           (.readAsDataURL reader file)))))))}]]
+          (when-let [uploaded-files (:uploaded-files @!state)]
+            (when (seq uploaded-files)
+              [:div
+               [:p (str "Uploaded " (count uploaded-files) " file(s):")]
+               (for [[file-key {:keys [name type]}] uploaded-files]
+                 ^{:key file-key} [:p {:style {:margin-left 20}} (str "• " name " (" type ")")])
+               [:button {:on-click #(swap! !state dissoc :uploaded-files)
+                         :style {:margin-left 10}}
+                "Clear All"]]))
+          [:p
            {:style {:height 50}}
            [:button {:disabled (or (empty? text)
                                    (empty? models))
@@ -270,9 +302,12 @@
                                                       (-> s
                                                           (assoc :selected-chat-id chat-id)
                                                           (update-in [:loading-chats chat-id] inc))))
-                                      (-> (do-request! {:message  text
-                                                        :model    model
-                                                        :api-keys api-keys})
+                                      (-> (do-request! (let [uploaded-files (:uploaded-files @!state)
+                                                                         file-values (when uploaded-files (vals uploaded-files))
+                                                                         messages (concat [text] (or file-values []))]
+                                                         {:messages messages
+                                                          :model    model
+                                                          :api-keys api-keys}))
                                           (.then (fn [v]
                                                    (let [response-id (or (when db
                                                                            (instantdb/id))

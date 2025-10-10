@@ -35,11 +35,11 @@
                    "content-type"      "application/json"})
     :reply-fn   (fn [b]
                   (-> b :content util/single :text))
-    :image-fn (fn [{:keys [input-stream mime-type]}]
+    :image-fn (fn [{:keys [mime-type base64-data]}]
                 {:type "image"
                  :source {:type "base64"
                           :media_type mime-type
-                          :data (io/input-stream->base64 input-stream)}})}
+                          :data base64-data}})}
    :gemini {:headers-fn {}
             :url-fn (fn [{:keys [api-key model]}]
                       (platform/format'
@@ -49,19 +49,18 @@
             :level2 {:parts nil}
             :reply-fn #(-> % :candidates util/single :content :parts util/single :text)
             :text-fn #(hash-map :text %)
-            :image-fn (fn [{:keys [input-stream mime-type]}]
+            :image-fn (fn [{:keys [mime-type base64-data]}]
                         ;; https://ai.google.dev/gemini-api/docs/vision?lang=rest
                         {:inline_data
                          {:mime_type mime-type
-                          :data (platform/format' "%s"
-                                                  (io/input-stream->base64 input-stream))}})}
+                          :data base64-data}})}
    :openai
-   {:image-fn (fn [{:keys [input-stream mime-type]}]
+   {:image-fn (fn [{:keys [mime-type base64-data]}]
                 {:type "image_url"
                  :image_url
                  {:url (platform/format' "data:%s;base64,%s"
                                  mime-type
-                                 (io/input-stream->base64 input-stream))}})}})
+                                 base64-data)}})}})
 
 (defn normalize-config [c]
   (merge
