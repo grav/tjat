@@ -12,7 +12,7 @@
                           :body-params {:max_tokens 64000}}
                          :claude-opus-4
                          {:model-name "claude-opus-4-20250514"
-                          :body-params {:max_tokens 64000}}
+                          :body-params {:max_tokens 32000}}
                          :claude-sonnet-4
                          {:model-name "claude-sonnet-4-20250514"
                           :body-params {:max_tokens 64000}}}}
