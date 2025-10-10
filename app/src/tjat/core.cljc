@@ -134,7 +134,8 @@
                                                                    :key       share-key})
                                            (.then #(swap! !state assoc-in [:render-state id] :rendered))
                                            (.catch #(swap! !state update-in [:render-state] dissoc id))))
-                           :disabled (= render-state :rendering)}
+                           :disabled (or (nil? sharing-bucket)
+                                         (= render-state :rendering))}
 
                   "Share"]
             (when (= render-state :rendered)
