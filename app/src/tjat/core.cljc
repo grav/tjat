@@ -114,7 +114,7 @@
     (fn [{{:keys [request-time response-time id text system-prompt files]} :response
           {:keys [sharing-bucket sharing-url]
            :as s3} :s3
-          :keys                                               [on-add-file]}]
+          :keys [selected-chat-text on-add-file]}]
 
       (let [s3-sharing (assoc s3 :bucket sharing-bucket)
             {{render-state id} :render-state} @!state
@@ -128,7 +128,7 @@
                                                                      (gstring/format
                                                                        "*%s*\n\n%s\n\n<hr>\n\n%s"
                                                                        (util/date->str request-time)
-                                                                       "Question"
+                                                                       selected-chat-text
                                                                        text))
                                                                    :file-type "text/html; charset=utf-8"
                                                                    :key       share-key})
@@ -214,7 +214,7 @@
           :as   handlers}]
       (let [{selected-response-id selected-chat-id} selections
             {:keys [hover timer resting show-hidden]} @!state
-            {:keys [responses hidden]
+            {:keys [responses hidden text]
              :as   chat} (->> chats
                               (filter (comp #{selected-chat-id} :id))
                               util/single)]
@@ -286,7 +286,8 @@
            [:hr]
            (when (or (nil? search-results)
                      (search-response-ids selected-response-id))
-             [response-view {:response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
+             [response-view {:selected-chat-text text
+                             :response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
                              :s3 s3
                              :on-add-file on-add-file
