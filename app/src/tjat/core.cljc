@@ -123,17 +123,18 @@
           [:div
            [:div [:button {:on-click (fn []
                                        (swap! !state assoc-in [:render-state id] :rendering)
-                                       (-> (s3/upload+ s3-sharing {:file
-                                                                   (markdown->html
-                                                                     (gstring/format
-                                                                       "*%s*\n\n%s\n\n<hr>\n\n%s"
-                                                                       (util/date->str request-time)
-                                                                       selected-chat-text
-                                                                       text))
-                                                                   :file-type "text/html; charset=utf-8"
-                                                                   :key       share-key})
-                                           (.then #(swap! !state assoc-in [:render-state id] :rendered))
-                                           (.catch #(swap! !state update-in [:render-state] dissoc id))))
+                                       (let [body (markdown->html
+                                                    (gstring/format
+                                                      "*%s*\n\n%s\n\n<hr>\n\n%s"
+                                                      (util/date->str request-time)
+                                                      selected-chat-text
+                                                      text))
+                                             html-str (gstring/format "<html><body style='max-width: 800px;'>%s</body></html>" body)]
+                                         (-> (s3/upload+ s3-sharing {:file html-str
+                                                                     :file-type "text/html; charset=utf-8"
+                                                                     :key       share-key})
+                                             (.then #(swap! !state assoc-in [:render-state id] :rendered))
+                                             (.catch #(swap! !state update-in [:render-state] dissoc id)))))
                            :disabled (or (nil? sharing-bucket)
                                          (= render-state :rendering))}
 
