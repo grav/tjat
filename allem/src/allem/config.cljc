@@ -42,8 +42,12 @@
                    "content-type"      "application/json"})
     :reply-fn   (fn [b]
                   (-> b :content util/single :text))
-    :upload-fn (fn [{:keys [mime-type base64-data]}]
+    :upload-fn (fn [{:keys [mime-type base64-data text] :as f}]
                  (cond
+                   (= mime-type "text/plain")
+                   {:type "text"
+                    :text text}
+
                    (str/starts-with? mime-type "image/")
                    {:type "image"
                     :source {:type "base64"
