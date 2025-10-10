@@ -6,5 +6,8 @@
                 :release {:output-dir "public-release/js"}
                 :dev {:compiler-options
                       {:reader-features #{:dev-config}}}
-                :js-options {:entry-keys ["module" "browser" "main"]}}}
+                :js-options {;; https://shadow-cljs.github.io/docs/UsersGuide.html#js-entry-keys
+                             :entry-keys ["module" "browser" "main"]
+                             ;; ensures packages with "exports" also take the esm files, since that is pretty common these days
+                             :export-conditions ["module" "import" "browser" "require" "default"]}}}
  :dev-http {8000 "public"}}
