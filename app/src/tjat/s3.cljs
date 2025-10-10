@@ -1,21 +1,24 @@
 (ns tjat.s3
-  (:require ["aws-sdk" :as aws]))
+  (:require ["@aws-sdk/client-s3" :as aws-s3]
+            ["@aws-sdk/s3-request-presigner" :as aws-presign]))
 
 (defn create-client [{:keys [access-key-id secret-access-key endpoint]}]
-  (aws/S3. #js{:accessKeyId      access-key-id
-               :secretAccessKey  secret-access-key
-               :endpoint         endpoint
-               :signatureVersion "v4"}))
+  (aws-s3/S3Client.
+    #js{:region      "auto"
+        :endpoint    endpoint
+        :signatureVersion "v4"
+        :credentials #js {:accessKeyId     access-key-id
+                          :secretAccessKey secret-access-key}}))
 
 (defn get-file+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
   (let [s3-client (create-client s3)]
     (-> (js/Promise.resolve)
         (.then (fn []
-                 (.getSignedUrlPromise s3-client
-                                       "getObject"
-                                       #js {:Bucket  bucket
-                                            :Key     file-hash
-                                            :Expires 300})))
+                 (aws-presign/getSignedUrl s3-client
+                                           (aws-s3/GetObjectCommand.
+                                             #js {:Bucket  bucket
+                                                  :Key     file-hash})
+                                           #js {:expiresIn 300})))
         (.then (fn [signed-url]
                  (js/fetch signed-url)))
         (.then (fn [response]
@@ -35,21 +38,21 @@
   (let [s3-client (create-client s3)]
     (-> (js/Promise.resolve)
         (.then (fn []
-                 (.getSignedUrlPromise s3-client
-                                       "getObject"
-                                       #js {:Bucket  bucket
-                                            :Key     file-hash
-                                            :Expires 300}))))))
+                 (aws-presign/getSignedUrl s3-client
+                                           (aws-s3/GetObjectCommand.
+                                                 #js {:Bucket  bucket
+                                                      :Key     file-hash})
+                                           #js {:expiresIn 300}))))))
 
 (defn file-exists+ [{:keys [bucket] :as s3} {:keys [file-hash]}]
   (let [s3-client (create-client s3)]
     (-> (js/Promise.resolve)
         (.then (fn []
-                 (.getSignedUrlPromise s3-client
-                                       "headObject"
-                                       #js {:Bucket  bucket
-                                            :Key     file-hash
-                                            :Expires 300})))
+                 (aws-presign/getSignedUrl s3-client
+                                           (aws-s3/HeadObjectCommand.
+                                             #js {:Bucket bucket
+                                                  :Key    file-hash})
+                                           #js{:expiresIn 300})))
         (.then (fn [signed-url]
                  (js/fetch signed-url #js{:method "HEAD"})))
         (.then (fn [response]

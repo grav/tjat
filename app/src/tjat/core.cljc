@@ -16,9 +16,9 @@
             ["algoliasearch" :as algolia]
             [clojure.edn]
             [clojure.string]
-            ["aws-sdk" :as aws]
+            ["@aws-sdk/client-s3" :as aws-s3]
+            ["@aws-sdk/s3-request-presigner" :as aws-presign]
             [tjat.s3 :as s3]))
-
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -391,10 +391,13 @@
                                                       base64-data (second (clojure.string/split data-url #","))
                                                       file-type (.-type file)
                                                       s3-client (when s3-configured?
-                                                                  (aws/S3. #js{:accessKeyId      access-key-id
-                                                                               :secretAccessKey  secret-access-key
-                                                                               :endpoint         endpoint
-                                                                               :signatureVersion "v4"}))]
+                                                                  (aws-s3/S3Client.
+                                                                    #js{:region      "auto"
+                                                                        :endpoint    endpoint
+                                                                        :signatureVersion "v4"
+                                                                        :credentials #js {:accessKeyId     access-key-id
+                                                                                          :secretAccessKey secret-access-key}}))]
+                                                  (js/console.log s3-client)
                                                   (when s3-client
                                                     (-> (.arrayBuffer file)
                                                         (.then (fn [buffer]
@@ -409,11 +412,11 @@
                                                                           (assoc f :file-hash file-hash
                                                                                    :cache-status :checking)))
                                                                  ;; check if file already exists
-                                                                 (-> (.getSignedUrlPromise s3-client
-                                                                                           "headObject"
-                                                                                           #js {:Bucket  bucket
-                                                                                                :Key     file-hash
-                                                                                                :Expires 300})
+                                                                 (-> (aws-presign/getSignedUrl s3-client
+                                                                                               (aws-s3/HeadObjectCommand.
+                                                                                                 #js {:Bucket bucket
+                                                                                                      :Key    file-hash})
+                                                                                               #js{:expiresIn 300})
                                                                      (.then (fn [url]
                                                                               {:file-hash file-hash
                                                                                :signed-url url})))))
@@ -430,12 +433,12 @@
                                                                            (swap! !state assoc-in [:uploaded-files file-key :cache-status]
                                                                                   :caching)
                                                                            (js/console.log (str "caching file " file-hash "..."))
-                                                                           (-> (.getSignedUrlPromise s3-client
-                                                                                                     "putObject"
-                                                                                                     #js {:Bucket      bucket
-                                                                                                          :Key         file-hash
-                                                                                                          :ContentType file-type
-                                                                                                          :Expires     300})
+                                                                           (-> (aws-presign/getSignedUrl s3-client
+                                                                                                         (aws-s3/PutObjectCommand.
+                                                                                                           #js {:Bucket      bucket
+                                                                                                                :Key         file-hash
+                                                                                                                :ContentType file-type})
+                                                                                                         #{:expiresIn     300})
                                                                                (.then (fn [signed-url]
                                                                                         (js/fetch signed-url
                                                                                                   #js {:method  "PUT"
