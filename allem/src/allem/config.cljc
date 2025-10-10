@@ -1,5 +1,5 @@
 (ns allem.config
-  (:require [goog.string :as gstring] goog.string.format  ;; https://clojurescript.org/reference/google-closure-library#requiring-a-function
+  (:require [allem.platform :as platform]
             [allem.io :as io]
             [allem.util :as util]))
 
@@ -9,10 +9,6 @@
     matches
     s))
 
-(defn format' [s & args]
-  #?(:cljs (apply gstring/format s args)
-     :clj (apply format s args)))
-
 (def openai-content-structure
   {:level1 {:messages nil}
    :level2 {:role "user"
@@ -20,7 +16,7 @@
 
 (def bearer-headers-fn
   (fn [{:keys [api-key]}]
-    {"Authorization"     (format' "Bearer %s" api-key)}))
+    {"Authorization"     (platform/format' "Bearer %s" api-key)}))
 
 (def openai-reply-fn
   #(-> % :choices util/single :message :content))
@@ -50,7 +46,7 @@
                           :data (io/input-stream->base64 input-stream)}})}
    :gemini {:headers-fn {}
             :url-fn (fn [{:keys [api-key model]}]
-                      (format'
+                      (platform/format'
                         "https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s"
                         model api-key))
             :level1 {:contents nil}
@@ -63,13 +59,13 @@
                         ;; https://ai.google.dev/gemini-api/docs/vision?lang=rest
                         {:inline_data
                          {:mime_type mime-type
-                          :data (format' "%s"
+                          :data (platform/format' "%s"
                                                   (io/input-stream->base64 input-stream))}})}
    :openai
    {:image-fn (fn [{:keys [input-stream mime-type]}]
                 {:type "image_url"
                  :image_url
-                 {:url (format' "data:%s;base64,%s"
+                 {:url (platform/format' "data:%s;base64,%s"
                                  mime-type
                                  (io/input-stream->base64 input-stream))}})}})
 
