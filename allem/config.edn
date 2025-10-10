@@ -33,7 +33,8 @@
                     
   :xai {:url "https://api.x.ai/v1/chat/completions"
         :models {:grok-2
-                 {:model-name "grok-2-latest"}}}
+                 {:model-name "grok-2-latest"}
+                 :grok-3 nil}}
   :mistral {:url "https://api.mistral.ai/v1/chat/completions"
             :models {:mistral-small
                      {:model-name "mistral-small-latest"}}}
@@ -60,4 +61,5 @@
           :gemini-2.5-flash-preview-04-17 [:gemini]
           :mistral-small [:mistral]
           :grok-2 [:xai]
+          :grok-3 [:xai]
           :qwen3-8b [:ollama]}}
