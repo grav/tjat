@@ -30,12 +30,13 @@
     (text-fn m)
 
     (map? m)
-    (let [{:keys [ base64 type]} m]
-      (when-not (and base64 type upload-fn)
-        (throw (ex-info (str "File uploads are only supported when upload-fn is available. "
-                             "Got file type: " type ", has upload-fn: " (some? upload-fn)
-                             ", base64 size:" (count base64)) nil)))
-      (upload-fn {:mime-type type :base64-data base64}))
+    (let [{:keys [ base64 type text]} m]
+      (if (= "text/plain" type)
+        (text-fn text)
+        (do
+          (when-not upload-fn
+            (throw (ex-info (str "Non-text file uploads are only supported when upload-fn is available. ") nil)))
+          (upload-fn {:mime-type type :base64-data base64 :text text}))))
 
     :else (throw (ex-info (str "unknown content" m) {:m m}))))
 

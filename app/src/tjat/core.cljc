@@ -545,15 +545,18 @@
                                (let [file-key (str (.-name file) "-" (.-size file) "-" (.-lastModified file))]
                                     (when-not (get-in @!state [:uploaded-files file-key])
                                       (let [reader (js/FileReader.)
-                                            {:keys [endpoint bucket access-key-id secret-access-key]} s3]
+                                            file-type (.-type file)]
                                         (set! (.-onload reader)
                                               (fn [event]
-                                                (let [data-url (.-result (.-target event))
-                                                      base64-data (second (clojure.string/split data-url #","))
-                                                      file-type (.-type file)
+                                                (js/console.log event)
+                                                (let [base64-data (when (not= "text/plain" file-type)
+                                                                    (-> (.-result (.-target event))
+                                                                        (str/split #",")
+                                                                        second))
+                                                      file-text (when (= "text/plain" file-type)
+                                                                  (.-result (.-target event)))
                                                       s3-client (when s3-configured?
                                                                   (s3/create-client s3))]
-                                                  (js/console.log s3-client)
                                                   (when s3-client
                                                     (-> (.arrayBuffer file)
                                                         (.then (fn [buffer]
@@ -588,11 +591,13 @@
 
 
                                                   (swap! !state assoc-in [:uploaded-files file-key]
-                                                         {:file   file
+                                                         {:text   file-text
                                                           :base64 base64-data
                                                           :name   (.-name file)
-                                                          :type   (.-type file)}))))
-                                        (.readAsDataURL reader file))))))]
+                                                          :type   file-type}))))
+                                        (if (= file-type "text/plain")
+                                          (.readAsText reader file)
+                                          (.readAsDataURL reader file)))))))]
 
              [:div {:style {:border (if @drag-over? "2px dashed #007cba" "2px dashed #ccc")
                             :padding "20px"

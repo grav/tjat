@@ -44,6 +44,7 @@
                   (-> b :content util/single :text))
     :upload-fn (fn [{:keys [mime-type base64-data]}]
                  (cond
+
                    (str/starts-with? mime-type "image/")
                    {:type "image"
                     :source {:type "base64"
