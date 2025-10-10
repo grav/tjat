@@ -261,6 +261,109 @@
                              :on-add-file on-add-file
                              :on-open-file on-open-file}])]]]))))
 
+(defn handle-submit [{:keys [db algolia-client
+                             text selected-chat-id chats models api-keys system-prompts uploaded-files]}
+                     !state]
+  (let [selected-chat (->> chats
+                           (filter (comp #{selected-chat-id} :id))
+                           util/single
+                           :text)
+        uploaded-files-meta (->> (for [[k v] uploaded-files]
+                                   [k (dissoc v :file :base64)])
+                                 (into {})
+                                 not-empty)
+        chat-id (if (not= text selected-chat)
+                  (if db
+                    (let [chat-id (instantdb/id)
+                          tx (.-tx db)
+                          new-chat (aget (.-chats ^js/Object tx) chat-id)]
+                      (.transact db
+                                 (.update new-chat #js{:text text}))
+                      (when algolia-client
+                        (-> (.saveObject ^js/Object algolia-client
+                                         (clj->js
+                                           {:indexName a/index-name-chats
+                                            :body      {:objectID chat-id
+                                                        :text     text}}))
+                            (.then js/console.log)))
+                      chat-id)
+                    ;; local-only
+                    (let [id (str (random-uuid))]
+                      (swap! !state update :chats (fn [vs]
+                                                    (conj (or vs [])
+                                                          {:id id :text text})))
+                      id))
+
+                  selected-chat-id)
+        start-time (js/Date.)]
+
+    (doseq [model models]
+      (let [response-id (or (when db
+                              (instantdb/id))
+                            (str (random-uuid)))
+            system-prompt (-> (get-in system-prompts [model :value])
+                              not-empty)
+            file-values (when uploaded-files (vals uploaded-files))]
+        (swap! !state (fn [s]
+                        (-> s
+                            (assoc :selected-chat-id chat-id)
+                            (assoc-in [:loading-chats chat-id response-id] model))))
+        (-> (do-request! (let [messages (->> (concat [system-prompt text]
+                                                     file-values)
+                                             (remove nil?))]
+                           {:messages messages
+                            :model    model
+                            :api-keys api-keys}))
+            (.then (fn [v]
+                     (let [
+                           end-time (js/Date.)
+                           response {:text          v
+                                     :model         (name model)
+                                     :system-prompt system-prompt
+                                     :request-time  start-time
+                                     :response-time end-time
+                                     :files         (clj->js uploaded-files-meta)}]
+                       (if db
+                         (do
+                           (.transact db (let [new-response (aget (.-responses ^js/Object (.-tx db)) response-id)]
+                                           (-> new-response
+                                               (.update (clj->js response))
+                                               (.link #js {:chats chat-id}))))
+                           (when algolia-client
+                             (-> (.saveObject ^js/Object algolia-client
+                                              (clj->js {:indexName a/index-name-responses
+                                                        :body      {:objectID response-id
+                                                                    :chat_id  chat-id
+                                                                    :text     v}}))
+                                 (.then js/console.log)))
+
+                           (swap! !state update-in [:loading-chats chat-id] dissoc response-id))
+
+                         ;; local-only
+                         (let [chat-idx (->> (map vector (range) (map :id chats))
+                                             (filter (fn [[_ id]]
+                                                       (= id chat-id)))
+                                             util/single
+                                             first)]
+                           (swap! !state (fn [s]
+                                           (cond-> s
+                                                   true
+                                                   (update-in [:chats chat-idx :responses] (fn [vs & _args]
+                                                                                             (conj (or vs [])
+                                                                                                   (assoc response
+                                                                                                     :id response-id))) [])
+                                                   true (update-in [:loading-chats chat-id] dissoc response-id))))
+                           100)))))
+            (.catch (fn [e]
+                      (js/alert
+                        (cond
+                          (some-> (ex-data e) :status)
+                          (str "Error: Got status " (:status (ex-data e))
+                               " from API (" (name model) ")")
+                          :else
+                          (str e)))
+                      (swap! !state update-in [:loading-chats chat-id] dissoc response-id))))))))
+
 (defn app []
   (let [api-keys-persisted (some-> (js/localStorage.getItem "tjat-api-keys")
                                    clojure.edn/read-string)]
@@ -383,6 +486,21 @@
             {:style {:width "100%"}
              :rows  10
              :value text
+             :on-key-down (fn [e]
+                            (when (and (= (.-key e) "Enter")
+                                       (or (.-metaKey e) (.-ctrlKey e)))
+                              (.preventDefault e)
+                              (handle-submit
+                                {:db db
+                                 :algolia-client algolia-client
+                                 :text text
+                                 :selected-chat-id selected-chat-id
+                                 :chats chats
+                                 :models models
+                                 :api-keys api-keys
+                                 :system-prompts system-prompts
+                                 :uploaded-files uploaded-files}
+                                !state)))
              :on-change
              (fn [e]
                (swap! !state assoc :text (.-value (.-target e))))}]]
@@ -558,111 +676,20 @@
                                    (some nil?
                                          (->> (vals uploaded-files)
                                               (map :file-hash))))
-                     :on-click #(do
-
-                                  (let [selected-chat (->> chats
-                                                           (filter (comp #{selected-chat-id} :id))
-                                                           util/single
-                                                           :text)
-                                        uploaded-files-meta (->> (for [[k v] uploaded-files]
-                                                                   [k (dissoc v :file :base64)])
-                                                                 (into {})
-                                                                 not-empty)
-                                        chat-id (if (not= text selected-chat)
-                                                  (if db
-                                                    (let [chat-id (instantdb/id)
-                                                          tx (.-tx db)
-                                                          new-chat (aget (.-chats ^js/Object tx) chat-id)]
-                                                      (.transact db
-                                                                 (.update new-chat #js{:text text}))
-                                                      (when algolia-client
-                                                        (-> (.saveObject ^js/Object algolia-client
-                                                                         (clj->js
-                                                                           {:indexName a/index-name-chats
-                                                                            :body      {:objectID chat-id
-                                                                                        :text     text}}))
-                                                            (.then js/console.log)))
-                                                      chat-id)
-                                                    ;; local-only
-                                                    (let [id (str (random-uuid))]
-                                                      (swap! !state update :chats (fn [vs]
-                                                                                    (conj (or vs [])
-                                                                                          {:id id :text text})))
-                                                      id))
-
-                                                  selected-chat-id)
-                                        start-time (js/Date.)]
-
-                                    (doseq [model models]
-                                      (let [response-id (or (when db
-                                                              (instantdb/id))
-                                                            (str (random-uuid)))
-                                            system-prompt (-> (get-in system-prompts [model :value])
-                                                              not-empty)
-                                            uploaded-files (:uploaded-files @!state)
-                                            file-values (when uploaded-files (vals uploaded-files))]
-                                        (swap! !state (fn [s]
-                                                        (-> s
-                                                            (assoc :selected-chat-id chat-id)
-                                                            (assoc-in [:loading-chats chat-id response-id] model))))
-                                        (-> (do-request! (let [messages (->> (concat [system-prompt text]
-                                                                                     file-values)
-                                                                             (remove nil?))]
-                                                           {:messages messages
-                                                            :model    model
-                                                            :api-keys api-keys}))
-                                            (.then (fn [v]
-                                                     (let [
-                                                           end-time (js/Date.)
-                                                           response {:text          v
-                                                                     :model         (name model)
-                                                                     :system-prompt system-prompt
-                                                                     :request-time  start-time
-                                                                     :response-time end-time
-                                                                     :files         (clj->js uploaded-files-meta)}]
-                                                       (if db
-                                                         (do
-                                                           (.transact db (let [new-response (aget (.-responses ^js/Object (.-tx db)) response-id)]
-                                                                           (-> new-response
-                                                                               (.update (clj->js response))
-                                                                               (.link #js {:chats chat-id}))))
-                                                           (when algolia-client
-                                                             (-> (.saveObject ^js/Object algolia-client
-                                                                              (clj->js {:indexName a/index-name-responses
-                                                                                        :body      {:objectID response-id
-                                                                                                    :chat_id  chat-id
-                                                                                                    :text     v}}))
-                                                                 (.then js/console.log)))
-
-                                                           (swap! !state update-in [:loading-chats chat-id] dissoc response-id))
-
-                                                         ;; local-only
-                                                         (let [chat-idx (->> (map vector (range) (map :id (:chats @!state))) ;; weird that 'chat' isn't updated?
-                                                                             (filter (fn [[_ id]]
-                                                                                       (= id chat-id)))
-                                                                             util/single
-                                                                             first)]
-                                                           (swap! !state (fn [s]
-                                                                           (cond-> s
-                                                                                   true
-                                                                                   (update-in [:chats chat-idx :responses] (fn [vs & _args]
-                                                                                                                             (conj (or vs [])
-                                                                                                                                   (assoc response
-                                                                                                                                     :id response-id))) [])
-                                                                                   true (update-in [:loading-chats chat-id] dissoc response-id))))
-                                                           100)))))
-                                            (.catch (fn [e]
-                                                      (js/alert
-                                                        (cond
-                                                          (some-> (ex-data e) :status)
-                                                          (str "Error: Got status " (:status (ex-data e))
-                                                               " from API (" (name model) ")")
-                                                          :else
-                                                          (str e)))
-                                                      (swap! !state update-in [:loading-chats chat-id] dissoc response-id))))))))}
+                     :on-click #(handle-submit
+                                  {:db db
+                                   :algolia-client algolia-client
+                                   :text text
+                                   :selected-chat-id selected-chat-id
+                                   :chats chats
+                                   :models models
+                                   :api-keys api-keys
+                                   :system-prompts system-prompts
+                                   :uploaded-files uploaded-files}
+                                  !state)}
 
 
-            "submit"]
+            "Run (⌘⏎)"]
            (when loading
              [ui/spinner])]
           (when algolia-client
