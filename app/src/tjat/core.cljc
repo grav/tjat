@@ -371,7 +371,7 @@
                                                          (swap! !state (fn [s]
                                                                          (cond-> s
                                                                                  true
-                                                                                 (update-in [:chats chat-idx :responses] (fn [vs]
+                                                                                 (update-in [:chats chat-idx :responses] (fn [vs & _args]
                                                                                                                            (conj (or vs [])
                                                                                                                                  (assoc response
                                                                                                                                    :id response-id))) [])
