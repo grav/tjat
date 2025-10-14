@@ -121,3 +121,4 @@
                                                             (on-search nil))} "X"]
                                       (when loading
                                         [spinner])]))})))
+

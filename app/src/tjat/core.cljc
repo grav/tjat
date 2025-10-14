@@ -4,6 +4,7 @@
             [allem.platform :as platform]
             [clojure.string :as str]
             [reagent.core :as r]
+            [reagent.dom.server :as rdom]
             [goog.dom :as gdom]
             [goog.string :as gstring]
             [goog.string.format]
@@ -21,7 +22,8 @@
             ["@aws-sdk/client-s3" :as aws-s3]
             ["@aws-sdk/s3-request-presigner" :as aws-presign]
             [tjat.s3 :as s3]
-            ["react-select$default" :as Select]))
+            ["react-select$default" :as Select]
+            [tjat.markdown :as md]))
 
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
@@ -58,31 +60,6 @@
       (.then util/spprint)
       (.then println)))
 
-(def think-start
-  (clj->js
-    {:type "lang"
-     :regex #"<think>"
-     :replace "<small><details><summary><i>Think</i> \uD83D\uDCAD</summary><i>"}))
-
-(def think-end
-  (clj->js
-    {:type "lang"
-     :regex #"</think>"
-     :replace "</i><hr></details></small>"}))
-
-(defn markdown->html [text]
-  (.makeHtml
-    ;; https://github.com/showdownjs/showdown?tab=readme-ov-file#valid-options
-    (doto (showdown/Converter.
-            (clj->js {:extensions [think-start
-                                   think-end]}))
-      (.setFlavor "github")) text))
-
-(defn markdown-view [text]
-  [:p
-   {:dangerouslySetInnerHTML
-    {:__html (markdown->html text)}}])
-
 (defn add-file-button []
   (let [!is-adding (r/atom nil)]
     (fn [{:keys [on-add-file file]}]
@@ -109,84 +86,110 @@
 
    (or title "Open")])
 
+(defn on-share+ [{:keys [selected-chat-text render-view response]
+                  {:keys [sharing-bucket sharing-url]
+                   :as   s3} :s3
+                  {:keys [files text id model]} :response}]
+  (let [body (rdom/render-to-static-markup
+               [:div
+                [:h2 [:pre "tjat share"]]
+                [:div "Text:"
+                 [:div {:style {:margin 4}} selected-chat-text]]
+                [:hr]
+                [:div (str "Model: " model)]
+                [render-view
+                 {:chat-text selected-chat-text
+                  :response  (-> response
+                                 (update :files
+                                         (fn [files]
+                                           (for [[k {:keys [file-hash] :as f}] files]
+                                             [k (assoc f :share-url
+                                                  (str sharing-url "/" file-hash))]))))}]])
+
+        html-str (gstring/format "<html><head><style>code { white-space: pre-wrap; }</style></head><body style='max-width: 800px;'>%s</body></html>" body)
+        share-key (gstring/format "%s.html" id)]
+    (-> (js/Promise.all (concat
+                          [(s3/upload+ (assoc s3 :bucket sharing-bucket) {:file      html-str
+                                                                          :file-type "text/html; charset=utf-8"
+                                                                          :key       share-key})]
+                          (for [[_k {:keys [file-hash file-type]}] files]
+                            (s3/copy+ s3 {:source-bucket      (:bucket s3)
+                                          :destination-bucket sharing-bucket
+                                          :source-key         file-hash
+                                          :destination-key    file-hash
+                                          :file-type          file-type}))))
+        (.then (fn []
+                 share-key)))))
+
 (defn response-view []
   (let [!state (r/atom nil)]
-    (fn [{{:keys [request-time response-time id text system-prompt files]} :response
+    (fn [{{:keys [response-time id text system-prompt files]
+           :as response} :response
           {:keys [sharing-bucket sharing-url]
            :as s3} :s3
-          :keys [selected-chat-text on-add-file]}]
+          :keys [selected-chat-text on-add-file on-share+]}]
 
       (let [s3-sharing (assoc s3 :bucket sharing-bucket)
-            {{render-state id} :render-state} @!state
-            share-key (gstring/format "%s.html" id)]
+            {{{:keys [rstate share-key]} id} :render-state} @!state]
         (when id
           [:div
-           [:div [:button {:on-click (fn []
-                                       (swap! !state assoc-in [:render-state id] :rendering)
-                                       (let [files-html (->> (for [[_k {:keys     [file-hash]
-                                                                        file-name :name :as f}] files]
-                                                               (gstring/format "<li><a href='%s/%s' target='%s'>%s</a></li>"
-                                                                               (:sharing-url s3)
-                                                                               file-hash
-                                                                               file-hash
-                                                                               file-name))
-                                                             (str/join "\n"))
-                                             body (markdown->html
-                                                    (gstring/format
-                                                      "*%s*\n\n%s\n\n%s\n\n<hr>\n\n%s"
-                                                      (util/date->str request-time)
-                                                      (gstring/htmlEscape selected-chat-text)
-                                                      (gstring/format "Files:<ul>%s</ul>" files-html)
-                                                      text))
-                                             html-str (gstring/format "<html><head><style>code { white-space: pre-wrap; }</style></head><body style='max-width: 800px;'>%s</body></html>" body)]
-                                         (-> (js/Promise.all (concat
-                                                               [(s3/upload+ s3-sharing {:file      html-str
-                                                                                        :file-type "text/html; charset=utf-8"
-                                                                                        :key       share-key})]
-                                                               (for [[_k {:keys     [file-hash file-type]}] files]
-                                                                 (s3/copy+ s3 {:source-bucket      (:bucket s3)
-                                                                               :destination-bucket (:sharing-bucket s3)
-                                                                               :source-key         file-hash
-                                                                               :destination-key    file-hash
-                                                                               :file-type          file-type}))))
-
-                                             (.then #(swap! !state assoc-in [:render-state id] :rendered))
+           (when on-share+
+             [:div [:button {:on-click (fn []
+                                         (swap! !state assoc-in [:render-state id :rstate] :rendering)
+                                         (-> (on-share+ {:selected-chat-text selected-chat-text
+                                                         :render-view response-view
+                                                         :response response
+                                                         :s3       s3})
+                                             (.then (fn [share-key]
+                                                      (swap! !state update-in [:render-state id]
+                                                             (fn [s]
+                                                               (assoc s :rstate :rendered
+                                                                        :share-key share-key)))))
                                              (.catch (fn [e]
                                                        (swap! !state update-in [:render-state] dissoc id)
-                                                       (js/console.log e))))))
-                           :disabled (or (nil? sharing-bucket)
-                                         (= render-state :rendering))}
+                                                       (js/console.log e)))))
+                             :disabled (or (nil? sharing-bucket)
+                                           (= rstate :rendering))}
 
-                  "Share"]
-            (when (= render-state :rendered)
-              [open-file-button {:title        "Open Share"
-                                 :on-open-file (if sharing-url
-                                                 #(js/Promise.resolve (gstring/format "%s/%s"
-                                                                                      sharing-url share-key))
-                                                 #(s3/get-file-open-url+ s3-sharing {:key share-key}))}])]
+                    "Share"]
+              (when (= rstate :rendered)
+                [open-file-button {:title        "Open Share"
+                                   :on-open-file (if sharing-url
+                                                   #(js/Promise.resolve (gstring/format "%s/%s"
+                                                                                        sharing-url share-key))
+                                                   #(s3/get-file-open-url+ s3-sharing {:key share-key}))}])])
            [:div [:i (util/date->str response-time)]]
            (when system-prompt
              [:div [:small
                     [:details
                      [:summary [:i "System prompt"] " \uD83E\uDD16"]
-                     [:i [markdown-view system-prompt]]]]])
+                     [:i [md/markdown-view system-prompt]]]]])
            (when (not-empty files)
              [:div [:small
                     [:details
                      [:summary [:i "Files"] " \uD83D\uDCC1"]
                      (for [[k {nme       :name :as f
+                               share-url :share-url
                                file-hash :file-hash}] files]
                        ^{:key (name k)} [:div {:style {:display :flex}}
-                                         nme
-                                         (when (and on-add-file
-                                                    file-hash)
+                                         (cond
+                                           (and on-add-file
+                                                file-hash)
                                            [:div
+                                            nme
+                                            " "
                                             [add-file-button
                                              {:on-add-file on-add-file
                                               :file        f}]
                                             [open-file-button
-                                             {:on-open-file #(s3/get-file-open-url+ s3 {:key file-hash})}]])])]]])
-           [:div [markdown-view text]]])))))
+                                             {:on-open-file #(s3/get-file-open-url+ s3 {:key file-hash})}]]
+
+                                           share-url
+                                           [:a {:href share-url :target file-hash}
+                                            nme])])]]])
+
+
+           [:div [md/markdown-view text]]])))))
 
 (defn system-prompt-tabs [{:keys [ids on-select selected-id system-prompts]}]
   [:div {:style {:display :flex}}
@@ -310,6 +313,7 @@
                              :response (or (->> responses (filter (comp #{selected-response-id} :id)) seq)
                                            (first responses))
                              :s3 s3
+                             :on-share+ on-share+
                              :on-add-file on-add-file
                              :on-open-file on-open-file}])]]]))))
 
