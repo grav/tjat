@@ -5,7 +5,10 @@
                           :post-process allem.core/remove-think}}}
   :anthropic   {:url "https://api.anthropic.com/v1/messages"
                 :body-params {:max_tokens 32000}
-                :models {:claude-opus-4.1
+                :models {:claude-haiku-4.5
+                         {:model-name "claude-haiku-4-5-20251001"
+                          :body-params {:max_tokens 64000}}
+                         :claude-opus-4.1
                          {:model-name "claude-opus-4-1-20250805"
                           :body-params {:max_tokens 32000}}
                          :claude-sonnet-4.5
@@ -38,6 +41,7 @@
                                  :deepseek]
           :claude-opus-4.1 [:anthropic]
           :claude-sonnet-4.5 [:anthropic]
+          :claude-haiku-4.5 [:anthropic]
           :gpt-4o [:openai]
           :gpt-4.1 [:openai]
           :o1-mini [:openai]
