@@ -1,8 +1,5 @@
 {:providers
- {:groq        {:url    "https://api.groq.com/openai/v1/chat/completions"
-                :models {:deepseek-r1
-                         {:model-name "deepseek-r1-distill-llama-70b"
-                          :post-process allem.core/remove-think}}}
+ {:groq        {:url    "https://api.groq.com/openai/v1/chat/completions"}
   :anthropic   {:url "https://api.anthropic.com/v1/messages"
                 :body-params {:max_tokens 32000}
                 :models {:claude-haiku-4.5
@@ -14,9 +11,7 @@
                          :claude-sonnet-4.5
                          {:model-name "claude-sonnet-4-5-20250929"
                           :body-params {:max_tokens 64000}}}}
-  :together-ai {:url "https://api.together.xyz/v1/chat/completions"
-                :models     {:deepseek-v3
-                             {:model-name "deepseek-ai/DeepSeek-V3"}}}
+  :together-ai {:url "https://api.together.xyz/v1/chat/completions"}
   :openai {:url "https://api.openai.com/v1/chat/completions"}
   :gemini {:use-latest? true}
   :ollama {:url "http://localhost:11434/v1/chat/completions"
@@ -27,18 +22,12 @@
   :mistral {:url "https://api.mistral.ai/v1/chat/completions"
             :models {:mistral-small
                      {:model-name "mistral-small-latest"}}}
-  :deepseek {:url "https://api.deepseek.com/chat/completions"
-             :models {:deepseek-v3
-                      {:model-name "deepseek-chat"}
-                      :deepseek-r1
-                      {:model-name "deepseek-reasoner"}}}
+  :deepseek {:url "https://api.deepseek.com/chat/completions"}
   :hyperbolic {:url "https://api.hyperbolic.xyz/v1/chat/completions"
                :models {:qwen3-480b-coder
                         {:model-name "Qwen/Qwen3-Coder-480B-A35B-Instruct"}}}}
- :models {:deepseek-v3         [:together-ai
-                                :deepseek]
-          :deepseek-r1          [:groq
-                                 :deepseek]
+ :models {:deepseek-chat         [:deepseek]
+          :deepseek-reasoner     [:deepseek]
           :claude-opus-4.1 [:anthropic]
           :claude-sonnet-4.5 [:anthropic]
           :claude-haiku-4.5 [:anthropic]
