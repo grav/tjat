@@ -96,7 +96,8 @@
                 [:div "Text:"
                  [:div {:style {:margin 4}} selected-chat-text]]
                 [:hr]
-                [:div (str "Model: " model)]
+                [:div (str "Model: ")
+                 [:b model]]
                 [render-view
                  {:chat-text selected-chat-text
                   :response  (-> response
