@@ -31,7 +31,7 @@
 
     (map? m)
     (let [{:keys [ base64 type text]} m]
-      (if (= "text/plain" type)
+      (if (util/is-text-mimetype? type)
         (text-fn text)
         (do
           (when-not upload-fn
