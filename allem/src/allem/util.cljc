@@ -39,8 +39,6 @@
         (System/getenv (key->env-var provider))
         (throw (ex-info "Couldn't find key" {:key provider}))))
 
-
-
-
-
+(defn is-text-mimetype? [s]
+  (str/starts-with? s "text/"))
       

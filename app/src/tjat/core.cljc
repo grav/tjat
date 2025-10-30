@@ -96,7 +96,8 @@
                 [:div "Text:"
                  [:div {:style {:margin 4}} selected-chat-text]]
                 [:hr]
-                [:div (str "Model: " model)]
+                [:div (str "Model: ")
+                 [:b model]]
                 [render-view
                  {:chat-text selected-chat-text
                   :response  (-> response
@@ -572,11 +573,11 @@
                                         (set! (.-onload reader)
                                               (fn [event]
                                                 (js/console.log event)
-                                                (let [base64-data (when (not= "text/plain" file-type)
+                                                (let [base64-data (when (not (util/is-text-mimetype? file-type))
                                                                     (-> (.-result (.-target event))
                                                                         (str/split #",")
                                                                         second))
-                                                      file-text (when (= "text/plain" file-type)
+                                                      file-text (when (util/is-text-mimetype? file-type)
                                                                   (.-result (.-target event)))
                                                       s3-client (when s3-configured?
                                                                   (s3/create-client s3))]
@@ -618,7 +619,7 @@
                                                           :base64 base64-data
                                                           :name   (.-name file)
                                                           :type   file-type}))))
-                                        (if (= file-type "text/plain")
+                                        (if (util/is-text-mimetype? file-type)
                                           (.readAsText reader file)
                                           (.readAsDataURL reader file)))))))]
 
