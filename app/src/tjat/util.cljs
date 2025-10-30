@@ -12,3 +12,9 @@
 (defn swap-elements [v i1 i2]
   {:pre [(vector? v)]}
   (assoc v i2 (v i1) i1 (v i2)))
+
+(defn date->str [date]
+  (some-> date
+          js/Date.parse
+          (js/Date.)
+          str))

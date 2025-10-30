@@ -1,6 +1,7 @@
 (ns tjat.core
   (:require ["react-dom/client" :as react-dom]
-            [allem.util :as util]
+            [tjat.util :as util]
+            [allem.util :as allem-util]
             [allem.platform :as platform]
             [clojure.string :as str]
             [reagent.core :as r]
@@ -573,11 +574,11 @@
                                         (set! (.-onload reader)
                                               (fn [event]
                                                 (js/console.log event)
-                                                (let [base64-data (when (not (util/is-text-mimetype? file-type))
+                                                (let [base64-data (when (not (allem-util/is-text-mimetype? file-type))
                                                                     (-> (.-result (.-target event))
                                                                         (str/split #",")
                                                                         second))
-                                                      file-text (when (util/is-text-mimetype? file-type)
+                                                      file-text (when (allem-util/is-text-mimetype? file-type)
                                                                   (.-result (.-target event)))
                                                       s3-client (when s3-configured?
                                                                   (s3/create-client s3))]
@@ -619,7 +620,7 @@
                                                           :base64 base64-data
                                                           :name   (.-name file)
                                                           :type   file-type}))))
-                                        (if (util/is-text-mimetype? file-type)
+                                        (if (allem-util/is-text-mimetype? file-type)
                                           (.readAsText reader file)
                                           (.readAsDataURL reader file)))))))]
 

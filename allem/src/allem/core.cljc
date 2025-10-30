@@ -4,8 +4,7 @@
     [clojure.edn :as edn]
     [clojure.string]
     [allem.config]
-    [shadow.resource :as rc]))
-
+    #?(:cljs [shadow.resource :as rc])))
 
 (defn throw-on-error [{:keys [status body]
                        :as response}]
@@ -66,9 +65,11 @@
 
 (def config
   (merge-with merge
-              (-> (rc/inline "./config.edn")
+              (-> #?(:cljs (rc/inline "./config.edn")
+                     :clj (slurp "./config.edn"))
                   edn/read-string)
-              #?(:dev-config (-> (rc/inline "./config_dev.edn")
+              #?(:dev-config (-> #?(:cljs (rc/inline "./config.edn")
+                                    :clj (slurp "./config.edn"))
                                  edn/read-string))))
 
 (defn make-config [{:keys [model provider api-keys]}]

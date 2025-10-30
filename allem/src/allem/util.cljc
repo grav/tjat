@@ -1,8 +1,6 @@
 (ns allem.util
   (:require [clojure.pprint]
-            [clojure.edn :as edn]
-            [clojure.string :as str]
-            [shadow.resource :as rc]))
+            [clojure.string :as str]))
 
 
 (defn single [[e & es]]
@@ -27,12 +25,6 @@
         name
         str/upper-case
         (str/replace "-" "_"))))
-
-(defn date->str [date]
-  (some-> date
-          js/Date.parse
-          (js/Date.)
-          str))
 
 #_(defn get-api-key [provider]
     (or (get api-keys provider)
