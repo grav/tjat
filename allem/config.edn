@@ -26,7 +26,10 @@
   :deepseek {:url "https://api.deepseek.com/chat/completions"}
   :hyperbolic {:url "https://api.hyperbolic.xyz/v1/chat/completions"
                :models {:qwen3-480b-coder
-                        {:model-name "Qwen/Qwen3-Coder-480B-A35B-Instruct"}}}}
+                        {:model-name "Qwen/Qwen3-Coder-480B-A35B-Instruct"}}}
+  :cerebras {:url "https://api.cerebras.ai/v1/chat/completions"
+             :models {:glm-4.6 {:model-name "zai-glm-4.6"}
+                      :gpt-oss-120b nil}}}
  :models {:deepseek-chat         [:deepseek]
           :deepseek-reasoner     [:deepseek]
           :claude-opus-4.1 [:anthropic]
@@ -47,4 +50,7 @@
           :grok-4 [:xai]
           :grok-4-fast-reasoning [:xai]
           :grok-4-fast-non-reasoning [:xai]
-          :qwen3-480b-coder [:hyperbolic]}}
+          :qwen3-480b-coder [:hyperbolic]
+          :glm-4.6 [:cerebras]
+          :gpt-oss-120b [:cerebras]}}
+
