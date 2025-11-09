@@ -109,6 +109,19 @@
                                           (for [m messages]
                                             (message->content config m)))
                        body-params)})))
+
+
+;; Maybe this could be the API?
+;; TODO - spec!
+(defn make-request [{:keys [messages] :as opts}]
+  (let [config (make-config (dissoc opts :messages))
+        {:keys [reply-fn]
+         :as request} (apply-config
+                                    (assoc config :messages messages))]
+    {:request (dissoc request :reply-fn)
+     :reply-fn reply-fn}))
+
+
 (comment
   (apply-config
     (merge
