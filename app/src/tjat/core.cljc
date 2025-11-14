@@ -90,18 +90,18 @@
 (defn on-share+ [{:keys [selected-chat-text render-view response]
                   {:keys [sharing-bucket sharing-url]
                    :as   s3} :s3
-                  {:keys [files text id model]} :response}]
+                  {:keys [files id model]} :response}]
   (let [body (rdom/render-to-static-markup
                [:div
                 [:h2 [:pre "tjat share"]]
                 [:div "Text:"
-                 [:div {:style {:margin 4}} selected-chat-text]]
+                 [:div {:style {:margin 4}}
+                  [:code selected-chat-text]]]
                 [:hr]
                 [:div (str "Model: ")
                  [:b model]]
                 [render-view
-                 {:chat-text selected-chat-text
-                  :response  (-> response
+                 {:response  (-> response
                                  (update :files
                                          (fn [files]
                                            (for [[k {:keys [file-hash] :as f}] files]
