@@ -13,7 +13,8 @@
                           :body-params {:max_tokens 64000}}}}
   :together-ai {:url "https://api.together.xyz/v1/chat/completions"}
   :openai {:url "https://api.openai.com/v1/chat/completions"}
-  :gemini {:use-latest? true}
+  :gemini {:use-latest? true
+           :models {:gemini-3-pro-preview {:use-latest? false}}}
   :ollama {:url "http://localhost:11434/v1/chat/completions"
            :models {:qwen3-8b
                     {:model-name "qwen3:8b"}}}

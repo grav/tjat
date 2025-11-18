@@ -77,24 +77,18 @@
                      (-> (get-in config [:models model])
                          first))
         _ (assert provider model)
-        {:keys [models use-latest?]
-         :as   config} (get-in config [:providers provider])
-        {:keys [model-name post-process body-params]
-         :or   {model-name (name model)}} (if model
-                                            (get models model)
-                                            (first (vals models)))
+        {:keys [models]
+         :as   provider-config} (get-in config [:providers provider])
+        model-config (get models model)
         config-fns (-> (get allem.config/functions provider)
-                       allem.config/normalize-config)]
+                       allem.config/normalize-config)
+        {:keys [model-name use-latest? body-params]
+         :or {model-name (name model)}} (merge config model-config)]
     (merge
-      (dissoc config
-              :config
-              :models)
+      (dissoc provider-config :models)
       config-fns
       (cond-> {:model        (cond-> model-name
                                      use-latest? (str "-latest"))
-               ;; TODO - maybe nuke post-process ...
-               :post-process (or (some-> post-process #_resolve)
-                                 identity)
                :api-key      (get api-keys provider)
                :provider     provider}
               body-params (assoc :body-params body-params)))))
