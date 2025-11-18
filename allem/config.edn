@@ -40,6 +40,7 @@
           :gemini-flash [:gemini]
           :gemini-flash-lite [:gemini]
           :gemini-pro [:gemini]
+          :gemini-3-pro-preview [:gemini]
           :mistral-small [:mistral]
           :grok-3 [:xai]
           :grok-4 [:xai]
