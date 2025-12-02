@@ -20,9 +20,8 @@
                     {:model-name "qwen3:8b"}}}
 
   :xai {:url "https://api.x.ai/v1/chat/completions"}
-  :mistral {:url "https://api.mistral.ai/v1/chat/completions"
-            :models {:mistral-small
-                     {:model-name "mistral-small-latest"}}}
+  :mistral {:use-latest? true
+            :url "https://api.mistral.ai/v1/chat/completions"}
   :deepseek {:url "https://api.deepseek.com/chat/completions"}
   :hyperbolic {:url "https://api.hyperbolic.xyz/v1/chat/completions"
                :models {:qwen3-480b-coder
@@ -46,6 +45,7 @@
           :gemini-pro [:gemini]
           :gemini-3-pro-preview [:gemini]
           :mistral-small [:mistral]
+          :mistral-large [:mistral]
           :grok-3 [:xai]
           :grok-4 [:xai]
           :grok-4-fast-reasoning [:xai]
