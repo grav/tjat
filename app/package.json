@@ -9,16 +9,16 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "shadow-cljs": "^3.3.3"
+    "shadow-cljs": "^3.2.0"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.890.0",
     "@aws-sdk/s3-request-presigner": "^3.891.0",
     "@instantdb/core": "^0.22.78",
     "algoliasearch": "^5.21.0",
-    "react": "^19.2.1",
+    "react": "^19.0.0",
     "react-color": "^2.19.3",
-    "react-dom": "^19.2.1",
+    "react-dom": "^19.0.0",
     "react-select": "^5.10.2",
     "showdown": "^2.1.0",
     "web-streams-polyfill": "^4.2.0"
