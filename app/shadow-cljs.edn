@@ -9,5 +9,6 @@
                 :js-options {;; https://shadow-cljs.github.io/docs/UsersGuide.html#js-entry-keys
                              :entry-keys ["module" "browser" "main"]
                              ;; ensures packages with "exports" also take the esm files, since that is pretty common these days
-                             :export-conditions ["module" "import" "browser" "require" "default"]}}}
+                             :export-conditions ["module" "import" "browser" "require" "default"]}
+                :closure-defines {tjat.core/GIT_SHA #shadow/env "GIT_SHA"}}}
  :dev-http {8000 "public"}}

@@ -9,9 +9,11 @@ export AWS_PAGER=""
 
 pushd app
 
+[ -z "$(git status --porcelain)" ] || ( >&2 echo Boom; exit 1 )
+
 npm i
 
-npx shadow-cljs release :app
+GIT_SHA="$(git rev-parse HEAD)" npx shadow-cljs release :app
 
 # Create favicon using ImageMagick. Prefer `magick` (ImageMagick 7+), fall back to `convert` (ImageMagick 6).
 if command -v magick >/dev/null 2>&1; then

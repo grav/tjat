@@ -26,6 +26,8 @@
             ["react-select$default" :as Select]
             [tjat.markdown :as md]))
 
+(goog-define GIT_SHA "<dev-build>")
+
 (defonce root (react-dom/createRoot (gdom/getElement "app")))
 
 (defonce !state (r/atom nil))
@@ -837,7 +839,8 @@
                                        {:keys [unsubscribe db algolia-client]} @!ref-state]
                                    #_[:pre (util/spprint @!ref-state)]
                                    [:div {:style {:max-width 800}}
-                                    [:h1 "tjat!"]
+                                    [:div {:on-click #(println 'GIT_SHA GIT_SHA)}
+                                     [:h1 "tjat!"]]
                                     [:details #?(:dev-config {:open true})
                                      [:summary "Sync settings"]
                                      [:div {:style {:display :flex}}
