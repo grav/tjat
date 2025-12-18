@@ -83,7 +83,7 @@
         config-fns (-> (get allem.config/functions provider)
                        allem.config/normalize-config)
         {:keys [model-name use-latest? body-params]
-         :or {model-name (name model)}} (merge config model-config)]
+         :or {model-name (name model)}} (merge provider-config model-config)]
     (merge
       (dissoc provider-config :models)
       config-fns
