@@ -116,9 +116,9 @@
 (defn make-request [{:keys [messages] :as opts}]
   (let [config (make-config (dissoc opts :messages))
         {:keys [reply-fn]
-         :as request} (apply-config
-                                    (assoc config :messages messages))]
-    {:request (dissoc request :reply-fn)
+         :as request-params} (apply-config
+                                           (assoc config :messages messages))]
+    {:request-params (dissoc request-params :reply-fn)
      :reply-fn reply-fn}))
 
 
