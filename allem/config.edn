@@ -12,6 +12,9 @@
                          {:model-name "claude-sonnet-4-5-20250929"
                           :body-params {:max_tokens 64000}}}}
   :together-ai {:url "https://api.together.xyz/v1/chat/completions"}
+  :fireworks {:url "https://api.fireworks.ai/inference/v1/chat/completions"
+              :models {:glm-5.2
+                       {:model-name "accounts/fireworks/models/glm-5p2"}}}
   :openai {:url "https://api.openai.com/v1/chat/completions"}
   :gemini {:use-latest? true
            :models {:gemini-3-pro-preview {:use-latest? false}
@@ -54,5 +57,6 @@
           :grok-4-fast-non-reasoning [:xai]
           :qwen3-480b-coder [:hyperbolic]
           :glm-4.6 [:cerebras]
+          :glm-5.2 [:fireworks]
           :gpt-oss-120b [:cerebras]}}
 
